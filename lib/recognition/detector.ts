@@ -1,10 +1,11 @@
 import { recognitionConfig } from "./config";
-import type { DetectedFace } from "./types";
+import type { DetectedFace, FaceBox } from "./types";
 import type { FaceApiModule } from "./model-manager";
+import type { LandmarkTrio } from "./photo-quality";
 
-function options(faceapi: FaceApiModule) {
+function videoOptions(faceapi: FaceApiModule, inputSize: number) {
   return new faceapi.TinyFaceDetectorOptions({
-    inputSize: recognitionConfig.detectionInputSize,
+    inputSize,
     scoreThreshold: recognitionConfig.detectionScoreThreshold,
   });
 }
@@ -13,9 +14,10 @@ function options(faceapi: FaceApiModule) {
 export async function detectFacesInVideo(
   faceapi: FaceApiModule,
   video: HTMLVideoElement,
+  inputSize: number = recognitionConfig.detectionInputSize,
 ): Promise<DetectedFace[]> {
   const results = await faceapi
-    .detectAllFaces(video, options(faceapi))
+    .detectAllFaces(video, videoOptions(faceapi, inputSize))
     .withFaceLandmarks()
     .withFaceDescriptors();
   return results.map((r) => ({
@@ -29,34 +31,55 @@ export async function detectFacesInVideo(
   }));
 }
 
-export interface SinglePhotoAnalysis {
-  faces: DetectedFace[];
+export interface PhotoFace extends DetectedFace {
+  landmarks: LandmarkTrio | null;
+}
+
+function extractLandmarks(r: {
+  landmarks: { positions: { x: number; y: number }[] };
+}): LandmarkTrio | null {
+  try {
+    const positions = r.landmarks.positions;
+    if (positions.length < 46) return null;
+    return {
+      leftEyeOuter: { x: positions[36].x, y: positions[36].y },
+      rightEyeOuter: { x: positions[45].x, y: positions[45].y },
+      noseTip: { x: positions[30].x, y: positions[30].y },
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Detection over a still photo (enrollment path).
- * Runs on the downscaled canvas produced by prepareUpload().
+ * Runs at higher resolution than live video and also extracts the
+ * landmark geometry used by quality assessment.
  */
 export async function analyzePhotoCanvas(
   faceapi: FaceApiModule,
   canvas: HTMLCanvasElement,
-): Promise<SinglePhotoAnalysis> {
+): Promise<{ faces: PhotoFace[] }> {
   const results = await faceapi
-    .detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions({
-      inputSize: 512,
-      scoreThreshold: recognitionConfig.detectionScoreThreshold,
-    }))
+    .detectAllFaces(
+      canvas,
+      new faceapi.TinyFaceDetectorOptions({
+        inputSize: 512,
+        scoreThreshold: recognitionConfig.detectionScoreThreshold,
+      }),
+    )
     .withFaceLandmarks()
     .withFaceDescriptors();
-  return {
-    faces: results.map((r) => ({
-      box: {
-        x: r.detection.box.x,
-        y: r.detection.box.y,
-        width: r.detection.box.width,
-        height: r.detection.box.height,
-      },
-      descriptor: Array.from(r.descriptor),
-    })),
-  };
+
+  const faces: PhotoFace[] = results.map((r) => ({
+    box: {
+      x: r.detection.box.x,
+      y: r.detection.box.y,
+      width: r.detection.box.width,
+      height: r.detection.box.height,
+    } satisfies FaceBox,
+    descriptor: Array.from(r.descriptor),
+    landmarks: extractLandmarks(r),
+  }));
+  return { faces };
 }

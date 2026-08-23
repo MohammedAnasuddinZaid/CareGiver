@@ -5,6 +5,7 @@ import { Camera, RefreshCcw, ScanFace, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Spinner } from "@/components/ui/empty-state";
+import { useToast } from "@/components/ui/toast";
 import { ENROLLMENT_REASONS, type EnrollmentFailureReason } from "@/lib/recognition/enrollment-reasons";
 import { enrollFromUpload } from "@/lib/recognition/enrollment";
 import type { PendingPhoto } from "./photo-dropzone";
@@ -38,6 +39,7 @@ export function CameraCapture({
   const [status, setStatus] = useState<CaptureStatus>("starting");
   const [analyzing, setAnalyzing] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const { toast } = useToast();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -115,6 +117,8 @@ export function CameraCapture({
         thumb,
         descriptor: result.descriptor,
       });
+      // Advisory quality hints — the photo is already accepted.
+      if (result.quality.warnings[0]) toast(result.quality.warnings[0], "info");
       setOpen(false);
     } catch (error) {
       setFailure(

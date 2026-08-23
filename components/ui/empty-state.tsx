@@ -29,7 +29,7 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       aria-hidden
-      className={clsx("animate-pulse rounded-3xl bg-surface-muted", className)}
+      className={clsx("shimmer rounded-3xl", className)}
     />
   );
 }

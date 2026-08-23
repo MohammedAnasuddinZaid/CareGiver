@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
   ArrowRight,
   Heart,
@@ -12,10 +13,25 @@ import {
   WifiOff,
 } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
-import { Card, CardHover } from "@/components/ui/card";
+import { SpotlightCard } from "@/components/ui/spotlight-card";
 import { Modal } from "@/components/ui/modal";
 
 const ONBOARDING_KEY = "ma.onboarded.v1";
+
+const heroStagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
+};
+
+const heroItem = {
+  hidden: { opacity: 0, y: 26, filter: "blur(8px)" },
+  show: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: { type: "spring" as const, stiffness: 120, damping: 20 },
+  },
+};
 
 export default function LandingPage() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -39,20 +55,42 @@ export default function LandingPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 md:px-6">
       {/* Hero */}
-      <section className="flex flex-col items-center py-16 text-center md:py-24 animate-fade-up">
-        <span className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-1.5 text-sm font-semibold text-teal-800">
+      <motion.section
+        variants={heroStagger}
+        initial="hidden"
+        animate="show"
+        className="relative flex flex-col items-center overflow-hidden py-16 text-center md:py-24"
+      >
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+          <span className="aurora-blob aurora-blob-a left-[8%] top-[12%] h-72 w-72 bg-teal-300/50" />
+          <span className="aurora-blob aurora-blob-b right-[6%] top-[30%] h-80 w-80 bg-emerald-200/60" />
+          <span className="aurora-blob aurora-blob-a left-[38%] top-[55%] h-64 w-64 bg-amber-100/70" />
+        </div>
+        <motion.span
+          variants={heroItem}
+          className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-1.5 text-sm font-semibold text-teal-800"
+        >
           <Sparkles className="h-4 w-4" aria-hidden />
           Privacy-first assistive technology
-        </span>
-        <h1 className="mt-6 max-w-3xl text-balance text-5xl font-extrabold leading-[1.05] tracking-tight md:text-7xl">
+        </motion.span>
+        <motion.h1
+          variants={heroItem}
+          className="mt-6 max-w-3xl text-balance text-5xl font-extrabold leading-[1.05] tracking-tight md:text-7xl"
+        >
           Helping familiar faces stay&nbsp;familiar.
-        </h1>
-        <p className="mt-6 max-w-2xl text-xl leading-relaxed text-ink-soft md:text-2xl">
+        </motion.h1>
+        <motion.p
+          variants={heroItem}
+          className="mt-6 max-w-2xl text-xl leading-relaxed text-ink-soft md:text-2xl"
+        >
           MemoryAssist is a private, gentle assistant that helps recognize the
           people who matter most — using the camera you already have and
           nothing but this device.
-        </p>
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+        </motion.p>
+        <motion.div
+          variants={heroItem}
+          className="mt-10 flex flex-wrap items-center justify-center gap-4"
+        >
           <ButtonLink href="/recognition" size="xl" className="min-w-[240px]">
             <ScanFace className="h-6 w-6" aria-hidden />
             Open Companion Mode
@@ -61,51 +99,48 @@ export default function LandingPage() {
             Caregiver Dashboard
             <ArrowRight className="h-5 w-5" aria-hidden />
           </ButtonLink>
-        </div>
-        <p className="mt-8 flex items-center gap-2 text-base text-ink-soft">
+        </motion.div>
+        <motion.p
+          variants={heroItem}
+          className="mt-8 flex items-center gap-2 text-base text-ink-soft"
+        >
           <Lock className="h-4 w-4 text-accent" aria-hidden />
           Designed with privacy first. Profiles stay on this device.
-        </p>
-      </section>
+        </motion.p>
+      </motion.section>
 
       {/* Feature cards */}
-      <section aria-label="What makes MemoryAssist different" className="grid gap-6 pb-16 md:grid-cols-3">
-        <CardHover>
-          <Card className="h-full p-7">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-              <Lock className="h-6 w-6" aria-hidden />
-            </span>
-            <h2 className="mt-5 text-2xl font-bold tracking-tight">Private by design</h2>
-            <p className="mt-3 text-lg leading-relaxed text-ink-soft">
-              Faces are analyzed entirely on your device. No video ever leaves
-              the browser, and profiles live in local storage — never a cloud.
-            </p>
-          </Card>
-        </CardHover>
-        <CardHover>
-          <Card className="h-full p-7">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-              <Heart className="h-6 w-6" aria-hidden />
-            </span>
-            <h2 className="mt-5 text-2xl font-bold tracking-tight">Built for clarity</h2>
-            <p className="mt-3 text-lg leading-relaxed text-ink-soft">
-              Large names, gentle wording, optional voice guidance. When the
-              system isn’t sure, it simply says so instead of guessing.
-            </p>
-          </Card>
-        </CardHover>
-        <CardHover>
-          <Card className="h-full p-7">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-              <WifiOff className="h-6 w-6" aria-hidden />
-            </span>
-            <h2 className="mt-5 text-2xl font-bold tracking-tight">Works offline</h2>
-            <p className="mt-3 text-lg leading-relaxed text-ink-soft">
-              Install it once and recognition keeps working without internet —
-              ready for smart glasses tomorrow, useful today.
-            </p>
-          </Card>
-        </CardHover>
+      <section aria-label="What makes MemoryAssist different" className="reveal-stagger grid gap-6 pb-16 md:grid-cols-3">
+        <SpotlightCard className="h-full rounded-3xl bg-surface border border-line shadow-soft p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+            <Lock className="h-6 w-6" aria-hidden />
+          </span>
+          <h2 className="mt-5 text-2xl font-bold tracking-tight">Private by design</h2>
+          <p className="mt-3 text-lg leading-relaxed text-ink-soft">
+            Faces are analyzed entirely on your device. No video ever leaves
+            the browser, and profiles live in local storage — never a cloud.
+          </p>
+        </SpotlightCard>
+        <SpotlightCard className="h-full rounded-3xl bg-surface border border-line shadow-soft p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+            <Heart className="h-6 w-6" aria-hidden />
+          </span>
+          <h2 className="mt-5 text-2xl font-bold tracking-tight">Built for clarity</h2>
+          <p className="mt-3 text-lg leading-relaxed text-ink-soft">
+            Large names, gentle wording, optional voice guidance. When the
+            system isn’t sure, it simply says so instead of guessing.
+          </p>
+        </SpotlightCard>
+        <SpotlightCard className="h-full rounded-3xl bg-surface border border-line shadow-soft p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+            <WifiOff className="h-6 w-6" aria-hidden />
+          </span>
+          <h2 className="mt-5 text-2xl font-bold tracking-tight">Works offline</h2>
+          <p className="mt-3 text-lg leading-relaxed text-ink-soft">
+            Install it once and recognition keeps working without internet —
+            ready for smart glasses tomorrow, useful today.
+          </p>
+        </SpotlightCard>
       </section>
 
       {/* How it works */}

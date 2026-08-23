@@ -36,6 +36,16 @@ export function useCamera(active: boolean) {
     }
     let cancelled = false;
 
+    // Camera vanished mid-session (unplugged / revoked): surface a
+    // recoverable error instead of silently freezing the frame.
+    const onEnded = () => {
+      if (cancelled) return;
+      stopStream(streamRef.current);
+      streamRef.current = null;
+      setErrorKind("ended");
+      setStatus("error");
+    };
+
     (async () => {
       setStatus("starting");
       setErrorKind(null);
@@ -43,7 +53,7 @@ export function useCamera(active: boolean) {
       streamRef.current = null;
       const video = videoRef.current;
       if (!video) return;
-      const { stream, errorKind: kind } = await startCamera(video);
+      const { stream, errorKind: kind } = await startCamera(video, { onEnded });
       if (cancelled) {
         stopStream(stream);
         return;

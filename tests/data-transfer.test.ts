@@ -113,4 +113,46 @@ describe("backup import validation", () => {
     expect(result.profiles[0].enrollmentPhotos).toHaveLength(0);
     expect(result.profiles[0].descriptors).toHaveLength(0);
   });
+
+  it("is immune to prototype-pollution and injected fields", () => {
+    const hostile = JSON.parse(
+      JSON.stringify({
+        app: "MemoryAssist",
+        schemaVersion: EXPORT_SCHEMA_VERSION,
+        profiles: [
+          {
+            name: "Evil",
+            relationship: "Other",
+            descriptors: [],
+            enrollmentPhotos: [],
+            photos: {},
+            __proto__: { isAdmin: true },
+            isAdmin: true,
+            id: "../../etc/passwd",
+          },
+        ],
+      }),
+    );
+    const result = validateAndParseImport(hostile);
+    expect(result.profiles).toHaveLength(1);
+    const p = JSON.parse(JSON.stringify(result.profiles[0]));
+    expect(p.isAdmin).toBeUndefined();
+    expect(Object.getPrototypeOf(p)).toBe(Object.prototype);
+    // IDs are regenerated, never taken from the file.
+    expect(result.profiles[0].id).not.toBe("../../etc/passwd");
+  });
+
+  it("rejects oversized backups before touching storage", () => {
+    const bundle = validBundle();
+    bundle.profiles = Array.from({ length: 501 }, (_, i) => ({
+      name: `P${i}`,
+      relationship: "Friend",
+      descriptors: [],
+      enrollmentPhotos: [],
+      photos: {},
+    }));
+    const result = validateAndParseImport(bundle);
+    expect(result.profiles).toHaveLength(0);
+    expect(result.skipped[0]).toMatch(/too large/i);
+  });
 });

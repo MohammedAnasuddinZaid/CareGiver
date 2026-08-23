@@ -1,11 +1,10 @@
 export type CameraErrorKind =
   | "denied"
-  | "dismissed"
   | "no-device"
   | "in-use"
   | "insecure"
   | "unsupported"
-  | "overconstrained"
+  | "ended"
   | "unknown";
 
 export function classifyCameraError(error: unknown): CameraErrorKind {
@@ -39,8 +38,14 @@ export interface CameraStartResult {
 /**
  * Starts the local camera. Frames are consumed in-page only — this module
  * contains no upload, streaming, or analytics code by design.
+ *
+ * `onEnded` fires when the camera disappears mid-session (unplugged,
+ * revoked by the OS, killed by another app) so the UI can recover.
  */
-export async function startCamera(video: HTMLVideoElement): Promise<CameraStartResult> {
+export async function startCamera(
+  video: HTMLVideoElement,
+  hooks: { onEnded?: () => void } = {},
+): Promise<CameraStartResult> {
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
     return { stream: null, errorKind: "unsupported" };
   }
@@ -66,6 +71,11 @@ export async function startCamera(video: HTMLVideoElement): Promise<CameraStartR
     }
   }
 
+  const [track] = stream.getVideoTracks();
+  if (track && hooks.onEnded) {
+    track.onended = () => hooks.onEnded?.();
+  }
+
   video.srcObject = stream;
   video.muted = true;
   video.playsInline = true;
@@ -83,8 +93,11 @@ export async function startCamera(video: HTMLVideoElement): Promise<CameraStartR
   return { stream, errorKind: null };
 }
 
-/** Stops every track — mandatory when leaving Companion Mode. */
+/** Stops every track and detaches handlers — mandatory when leaving camera UIs. */
 export function stopStream(stream: MediaStream | null): void {
   if (!stream) return;
-  for (const track of stream.getTracks()) track.stop();
+  for (const track of stream.getTracks()) {
+    track.onended = null;
+    track.stop();
+  }
 }

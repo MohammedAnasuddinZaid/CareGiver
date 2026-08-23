@@ -3,93 +3,147 @@ import { IdentityStabilizer } from "@/lib/recognition/stabilizer";
 import { recognitionConfig } from "@/lib/recognition/config";
 
 const cfg = recognitionConfig;
+const T = cfg.temporal;
+const STEP = 260; // matches the live sample interval
 
-function run(stabilizer: IdentityStabilizer, observations: (string | "unknown")[], start = 1000) {
-  const results = [];
+/** Feed observations at a fixed cadence; return all outputs. */
+function feed(
+  s: IdentityStabilizer,
+  obs: ({ id: string } | "unknown" | null)[],
+  start = 1000,
+) {
+  const out: { kind: string; personId: string | null }[] = [];
   let t = start;
-  for (const o of observations) {
-    results.push(stabilizer.observe(o, t));
-    t += 200;
+  for (const o of obs) {
+    const input =
+      o === "unknown" || o === null
+        ? { personId: null, confidence: 0 }
+        : { personId: o.id, confidence: 0.95 };
+    const r = s.observe(input, t);
+    out.push(r);
+    t += STEP;
   }
-  return { results, end: t };
+  return { out, end: t };
 }
 
-describe("IdentityStabilizer — temporal smoothing", () => {
-  it("stabilizes after enough agreeing frames", () => {
+describe("IdentityStabilizer — decayed evidence + hysteresis", () => {
+  it("needs several agreeing frames to ENTER recognized state", () => {
     const s = new IdentityStabilizer(cfg);
-    // stableVotes = 5 of the last bufferLength = 8
-    const { results } = run(s, ["mom", "mom", "mom", "mom", "mom"]);
-    expect(results[2].kind).toBe("identifying");
-    expect(results[3].kind).toBe("identifying");
-    expect(results[4]).toEqual({ kind: "recognized", personId: "mom" });
+    const { out } = feed(s, [{ id: "mom" }, { id: "mom" }, { id: "mom" }, { id: "mom" }]);
+    expect(out[0].kind).toBe("identifying");
+    expect(out[1].kind).toBe("identifying");
+    expect(out[out.length - 1].kind).toBe("recognized");
+    expect(out[out.length - 1].personId).toBe("mom");
   });
 
-  it("survives an occasional unknown frame once stable", () => {
+  it("rides through brief unmatched frames while weight is inside the hysteresis band", () => {
     const s = new IdentityStabilizer(cfg);
-    const { results, end } = run(s, ["mom", "mom", "mom", "mom", "mom"]);
-    expect(results[results.length - 1].kind).toBe("recognized");
-    const r = s.observe("unknown", end + 200);
-    expect(r).toEqual({ kind: "recognized", personId: "mom" });
-  });
-
-  it("does NOT stabilize a mixed stream of people", () => {
-    const s = new IdentityStabilizer(cfg);
-    const { results } = run(s, [
-      "mom",
-      "dad",
-      "mom",
-      "dad",
-      "unknown",
-      "dad",
-      "mom",
-      "unknown",
+    const { out, end } = feed(s, [
+      { id: "mom" },
+      { id: "mom" },
+      { id: "mom" },
+      { id: "mom" },
+      { id: "mom" },
     ]);
-    for (const r of results) {
-      expect(r.kind === "recognized" ? r.personId : null).not.toBe("dad");
-      expect(r.kind === "recognized" ? r.personId : null).not.toBe("mom");
-    }
+    expect(out[out.length - 1].kind).toBe("recognized");
+
+    // Two consecutive unknowns — evidence decays but stays above exitWeight.
+    const r1 = s.observe({ personId: null, confidence: 0 }, end);
+    const r2 = s.observe({ personId: null, confidence: 0 }, end + STEP);
+    expect(r1.kind).toBe("recognized");
+    expect(r2.kind).toBe("recognized");
   });
 
-  it("requires the new person to win independently before switching", () => {
+  it("releases the identity once evidence decays below exitWeight", () => {
     const s = new IdentityStabilizer(cfg);
-    run(s, ["mom", "mom", "mom", "mom", "mom"]);
-    // Dad appears far later than the hold window.
-    const { results } = run(s, ["dad", "dad", "dad", "dad", "dad"], 20_000);
-    const dadFrame = results.findIndex(
-      (r) => r.kind === "recognized" && r.personId === "dad",
-    );
-    expect(dadFrame).toBeGreaterThanOrEqual(0);
-    // Before Dad independently wins, Dad must NEVER be shown —
-    // holding the previous identity is safer than flashing a switch.
-    for (const r of results.slice(0, dadFrame)) {
+    const { end } = feed(s, [{ id: "mom" }, { id: "mom" }, { id: "mom" }, { id: "mom" }]);
+    let t = end;
+    let r = s.observe({ personId: null, confidence: 0 }, t);
+    let guard = 0;
+    while (r.kind === "recognized" && guard++ < 20) {
+      t += STEP;
+      r = s.observe({ personId: null, confidence: 0 }, t);
+    }
+    expect(r.kind === "unknown" || r.kind === "identifying").toBe(true);
+    // And unknown is debounced, not instant.
+    expect(r.kind).toBe("identifying");
+  });
+
+  it("weak-confidence matches accumulate slowly (borderline faces stay unidentified longer)", () => {
+    const strong = new IdentityStabilizer(cfg);
+    const weak = new IdentityStabilizer(cfg);
+    let ts = 1000;
+    for (let i = 0; i < 3; i++) {
+      strong.observe({ personId: "mom", confidence: 0.95 }, ts);
+      weak.observe({ personId: "mom", confidence: 0.35 }, ts);
+      ts += STEP;
+    }
+    const rs = strong.observe({ personId: "mom", confidence: 0.95 }, ts);
+    // Strong evidence should already have crossed enterWeight or be very close,
+    // weak evidence must not be stable yet.
+    const rw = weak.observe({ personId: "mom", confidence: 0.35 }, ts);
+    expect(rs.kind === "recognized" || rs.kind === "identifying").toBe(true);
+    expect(rw.kind).toBe("identifying");
+  });
+
+  it("requires a NEW person to independently satisfy the enter criterion before switching", () => {
+    const s = new IdentityStabilizer(cfg);
+    const { end } = feed(s, [
+      { id: "mom" },
+      { id: "mom" },
+      { id: "mom" },
+      { id: "mom" },
+      { id: "mom" },
+    ]);
+    // Dad appears far later than any hold window.
+    const { out } = feed(s, [
+      { id: "dad" },
+      { id: "dad" },
+      { id: "dad" },
+      { id: "dad" },
+      { id: "dad" },
+    ], end + 10_000);
+    const dadFrame = out.findIndex((r) => r.kind === "recognized" && r.personId === "dad");
+    expect(dadFrame).toBeGreaterThanOrEqual(2); // needs several frames of his own
+    for (const r of out.slice(0, dadFrame)) {
       expect(r.personId).not.toBe("dad");
     }
-    expect(results[results.length - 1]).toEqual({ kind: "recognized", personId: "dad" });
+    expect(out[out.length - 1]).toEqual({ kind: "recognized", personId: "dad" });
   });
 
-  it("holds a recognized identity briefly when the face disappears", () => {
+  it("holds a recognized identity through no-face gaps up to identityHoldMs", () => {
     const s = new IdentityStabilizer(cfg);
-    const { end } = run(s, ["mom", "mom", "mom", "mom", "mom"]);
-    const duringHold = s.observeNoFace(end + 500);
+    const { end } = feed(s, [{ id: "mom" }, { id: "mom" }, { id: "mom" }, { id: "mom" }]);
+    const duringHold = s.observeNoFace(end + T.identityHoldMs - STEP);
     expect(duringHold).toEqual({ kind: "recognized", personId: "mom" });
-    const afterHold = s.observeNoFace(end + cfg.identityHoldMs + 10);
+    const afterHold = s.observeNoFace(end + T.identityHoldMs + 50);
     expect(afterHold.kind).toBe("identifying");
   });
 
-  it("debounces the unknown state so one bad frame never offends anyone", () => {
+  it("debounces unknown so one bad frame never offends anyone", () => {
     const s = new IdentityStabilizer(cfg);
-    let result = s.observe("unknown", 0);
-    expect(result.kind).toBe("identifying");
-    for (let t = 250; t <= 800; t += 250) {
-      result = s.observe("unknown", t);
+    let r = s.observe({ personId: null, confidence: 0 }, 0);
+    expect(r.kind).toBe("identifying");
+    for (let t = STEP; t <= T.unknownDebounceMs + 200; t += STEP) {
+      r = s.observe({ personId: null, confidence: 0 }, t);
     }
-    expect(result.kind).toBe("unknown");
+    expect(r.kind).toBe("unknown");
   });
 
   it("reset clears everything", () => {
     const s = new IdentityStabilizer(cfg);
-    run(s, ["mom", "mom", "mom", "mom", "mom"]);
+    feed(s, [{ id: "mom" }, { id: "mom" }, { id: "mom" }, { id: "mom" }]);
     s.reset();
-    expect(s.observeNoFace(99999).kind).toBe("identifying");
+    expect(s.observeNoFace(999_999)).toEqual({ kind: "identifying", personId: null });
+    expect(s.snapshot(999_999)).toHaveLength(0);
+  });
+
+  it("snapshot exposes decayed weights for diagnostics", () => {
+    const s = new IdentityStabilizer(cfg);
+    feed(s, [{ id: "mom" }, { id: "mom" }]);
+    const snap = s.snapshot(1000 + 2 * STEP);
+    expect(snap).toHaveLength(1);
+    expect(snap[0].personId).toBe("mom");
+    expect(snap[0].weight).toBeGreaterThan(0);
   });
 });

@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
@@ -62,9 +63,8 @@ export default function AddPersonPage() {
   const addPhoto = useCallback(
     (photo: PendingPhoto) => {
       setPhotos((prev) => (prev.length >= maxPhotos ? prev : [...prev, photo]));
-      toast("Face found — recognition profile updated.");
     },
-    [maxPhotos, toast],
+    [maxPhotos],
   );
 
   const canContinue = useMemo(() => {
@@ -174,7 +174,15 @@ export default function AddPersonPage() {
         ))}
       </ol>
 
-      <Card className="mt-8 p-6 md:p-10 animate-fade-up">
+      <Card className="mt-8 p-6 md:p-10">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -18 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          >
         {step === 0 && (
           <>
             <h1 className="text-3xl font-bold tracking-tight">Who is this person?</h1>
@@ -331,6 +339,8 @@ export default function AddPersonPage() {
             </Button>
           )}
         </div>
+          </motion.div>
+        </AnimatePresence>
       </Card>
     </div>
   );

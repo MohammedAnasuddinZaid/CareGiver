@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Heart, Plus, ScanFace, ShieldCheck, Sparkles } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { EmptyState, Skeleton } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { PersonCard } from "@/components/people/person-card";
@@ -46,14 +47,14 @@ export default function CaregiverDashboard() {
       </header>
 
       {/* Summary */}
-      <section aria-label="Summary" className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section aria-label="Summary" className="reveal-stagger mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card className="flex items-center gap-4 p-5">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
             <Heart className="h-6 w-6" aria-hidden />
           </span>
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-ink-soft">Trusted People</p>
-            <p className="text-3xl font-bold">{loading ? "…" : people.length}</p>
+            <AnimatedNumber value={people.length} className="text-3xl font-bold" />
           </div>
         </Card>
         <Card className="flex items-center gap-4 p-5">
@@ -62,7 +63,7 @@ export default function CaregiverDashboard() {
           </span>
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-ink-soft">Recognition Ready</p>
-            <p className="text-3xl font-bold">{loading ? "…" : readyCount}</p>
+            <AnimatedNumber value={readyCount} className="text-3xl font-bold" />
           </div>
         </Card>
         <Card className="flex items-center gap-4 p-5">
@@ -124,16 +125,9 @@ export default function CaregiverDashboard() {
             }
           />
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="reveal-stagger grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {people.map((person) => (
-              <div key={person.id} className="relative">
-                <PersonCard person={person} />
-                {person.isDemo && (
-                  <span className="absolute left-4 top-4 rounded-full bg-amber-100/95 px-3 py-1 text-xs font-bold uppercase tracking-wide text-amber-800 shadow-soft">
-                    Demo data · no recognition
-                  </span>
-                )}
-              </div>
+              <PersonCard key={person.id} person={person} />
             ))}
           </div>
         )}

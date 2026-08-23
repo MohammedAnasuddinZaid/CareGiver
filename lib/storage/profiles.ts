@@ -1,3 +1,5 @@
+import { isFiniteVector } from "@/lib/recognition/metrics";
+import { DESCRIPTOR_LENGTH } from "@/lib/recognition/config";
 import {
   dbClear,
   dbCount,
@@ -9,7 +11,7 @@ import {
   STORE_ASSETS,
   STORE_PROFILES,
 } from "./db";
-import type { PersonProfile } from "@/lib/types/person";
+import type { EnrollmentPhoto, PersonProfile } from "@/lib/types/person";
 
 export interface StoredAsset {
   id: string;
@@ -23,13 +25,89 @@ function nowISO(): string {
   return new Date().toISOString();
 }
 
+function asString(value: unknown, maxLen: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, maxLen);
+}
+
+/**
+ * Defensive sanitization of records read back from IndexedDB.
+ * A corrupted or hand-edited record must never crash the app — it degrades
+ * to a safe shape instead (empty recognition data at worst).
+ */
+export function sanitizeProfile(raw: unknown): PersonProfile | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id = asString(r.id, 128);
+  const name = asString(r.name, 80);
+  if (!id || !name) return null;
+
+  let age: number | undefined;
+  if (typeof r.age === "number" && Number.isInteger(r.age) && r.age >= 0 && r.age <= 130) {
+    age = r.age;
+  }
+
+  const relationship = asString(r.relationship, 60) ?? "";
+
+  const enrollmentPhotos: EnrollmentPhoto[] = Array.isArray(r.enrollmentPhotos)
+    ? (r.enrollmentPhotos as unknown[])
+        .filter(
+          (p): p is EnrollmentPhoto =>
+            !!p &&
+            typeof p === "object" &&
+            typeof (p as EnrollmentPhoto).id === "string" &&
+            typeof (p as EnrollmentPhoto).addedAt === "string",
+        )
+        .slice(0, 20)
+    : [];
+
+  // Descriptors are filtered for shape AND aligned count; extra descriptors
+  // without photo slots are dropped to keep index-based edits consistent.
+  const rawDescriptors = Array.isArray(r.descriptors) ? (r.descriptors as unknown[]) : [];
+  const descriptors: number[][] = [];
+  for (
+    let i = 0;
+    i < Math.min(rawDescriptors.length, enrollmentPhotos.length);
+    i++
+  ) {
+    const d = rawDescriptors[i];
+    if (isFiniteVector(d)) descriptors.push(d);
+    else descriptors.push(new Array<number>(DESCRIPTOR_LENGTH).fill(0));
+  }
+
+  return {
+    id,
+    name,
+    age,
+    relationship,
+    description: asString(r.description, 400),
+    photoAssetId: asString(r.photoAssetId, 160),
+    photoThumb:
+      typeof r.photoThumb === "string" && r.photoThumb.startsWith("data:image/")
+        ? (r.photoThumb as string)
+        : undefined,
+    enrollmentPhotos,
+    descriptors,
+    isDemo: r.isDemo === true,
+    createdAt: asString(r.createdAt, 40) ?? nowISO(),
+    updatedAt: asString(r.updatedAt, 40) ?? nowISO(),
+  };
+}
+
 export async function getPeople(): Promise<PersonProfile[]> {
-  const people = await dbGetAll<PersonProfile>(STORE_PROFILES);
-  return people.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  const raw = await dbGetAll<unknown>(STORE_PROFILES);
+  const people = raw
+    .map(sanitizeProfile)
+    .filter((p): p is PersonProfile => p !== null)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+  return people;
 }
 
 export async function getPerson(id: string): Promise<PersonProfile | undefined> {
-  return dbGet<PersonProfile>(STORE_PROFILES, id);
+  const raw = await dbGet<unknown>(STORE_PROFILES, id);
+  return raw ? sanitizeProfile(raw) ?? undefined : undefined;
 }
 
 export async function createPerson(
@@ -104,8 +182,8 @@ export async function removeEnrollmentPhoto(personId: string, photoId: string): 
 
 /**
  * Rebuilds descriptors from the stored enrollment blobs.
- * The callback receives progress updates; failures are reported per-photo so
- * one bad image never destroys the whole profile.
+ * The callback receives each blob; failures are reported per-photo so one
+ * bad image never destroys the whole profile.
  */
 export async function rebuildDescriptors(
   personId: string,

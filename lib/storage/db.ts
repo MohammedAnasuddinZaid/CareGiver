@@ -6,15 +6,24 @@
  *   (blobs, descriptors); small non-sensitive app settings use localStorage.
  * - Nothing here ever leaves the device. There is no network code in this
  *   entire module.
- * - The schema is versioned so future upgrades migrate instead of deleting.
+ * - The schema is versioned; future upgrades migrate in `upgradeDatabase`
+ *   instead of deleting data.
  */
 
 const DB_NAME = "memoryassist-db";
-const DB_VERSION = 1;
+export const DB_VERSION = 1;
 
 export const STORE_PROFILES = "profiles";
 export const STORE_ASSETS = "assets";
 export const STORE_META = "meta";
+
+/** Friendly error for the "disk full" family of failures. */
+export class StorageQuotaError extends Error {
+  constructor() {
+    super("This device is out of local storage space.");
+    this.name = "StorageQuotaError";
+  }
+}
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -24,20 +33,17 @@ function openDatabase(): Promise<IDBDatabase> {
   }
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_PROFILES)) {
-        const store = db.createObjectStore(STORE_PROFILES, { keyPath: "id" });
-        store.createIndex("updatedAt", "updatedAt");
-      }
-      if (!db.objectStoreNames.contains(STORE_ASSETS)) {
-        const store = db.createObjectStore(STORE_ASSETS, { keyPath: "id" });
-        store.createIndex("personId", "personId");
-      }
-      if (!db.objectStoreNames.contains(STORE_META)) {
-        db.createObjectStore(STORE_META, { keyPath: "key" });
-      }
+    let request: IDBOpenDBRequest;
+    try {
+      request = indexedDB.open(DB_NAME, DB_VERSION);
+    } catch (error) {
+      dbPromise = null;
+      reject(error instanceof Error ? error : new Error("Could not open local database"));
+      return;
+    }
+    request.onupgradeneeded = (event) => {
+      const versionEvent = event as IDBVersionChangeEvent;
+      upgradeDatabase(request.result, request.transaction, versionEvent.oldVersion);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => {
@@ -52,11 +58,27 @@ function openDatabase(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
-function promisify<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("Database error"));
-  });
+/**
+ * Versioned migrations. Each case falls through so a user jumping several
+ * versions at once still gets every upgrade applied in order.
+ */
+function upgradeDatabase(db: IDBDatabase, _tx: IDBTransaction | null, oldVersion: number): void {
+  if (oldVersion < 1) {
+    const profiles = db.createObjectStore(STORE_PROFILES, { keyPath: "id" });
+    profiles.createIndex("updatedAt", "updatedAt");
+    const assets = db.createObjectStore(STORE_ASSETS, { keyPath: "id" });
+    assets.createIndex("personId", "personId");
+    db.createObjectStore(STORE_META, { keyPath: "key" });
+  }
+  // if (oldVersion < 2) { ...future migration... }
+}
+
+function mapStorageError(error: unknown): unknown {
+  if (error instanceof DOMException || (error && typeof error === "object")) {
+    const name = (error as { name?: string }).name;
+    if (name === "QuotaExceededError") return new StorageQuotaError();
+  }
+  return error;
 }
 
 async function withStore<T>(
@@ -66,19 +88,34 @@ async function withStore<T>(
 ): Promise<T | undefined> {
   const db = await openDatabase();
   return new Promise<T | undefined>((resolve, reject) => {
-    const tx = db.transaction(name, mode);
-    const store = tx.objectStore(name);
-    let result: T | undefined;
-    let request = fn(store);
-    if (request instanceof IDBRequest) {
-      // attach handlers lazily via tx completion below
-      request.onsuccess = () => {
-        result = request.result as T;
-      };
+    let tx: IDBTransaction;
+    try {
+      tx = db.transaction(name, mode);
+    } catch (error) {
+      reject(mapStorageError(error));
+      return;
     }
     tx.oncomplete = () => resolve(result);
-    tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"));
-    tx.onerror = () => reject(tx.error ?? new Error("Transaction error"));
+    tx.onabort = () => reject(mapStorageError(tx.error ?? new Error("Transaction aborted")));
+    tx.onerror = () => reject(mapStorageError(tx.error ?? new Error("Transaction error")));
+    const store = tx.objectStore(name);
+    let result: T | undefined;
+    try {
+      const request = fn(store);
+      if (request instanceof IDBRequest) {
+        request.onsuccess = () => {
+          result = request.result as T;
+        };
+        // A failed read should abort with a meaningful error.
+        request.onerror = () => {
+          try {
+            tx.abort();
+          } catch {}
+        };
+      }
+    } catch (error) {
+      reject(mapStorageError(error));
+    }
   });
 }
 
@@ -112,22 +149,71 @@ export async function dbCount(store: string): Promise<number> {
   return (await withStore<number>(store, "readonly", (s) => s.count())) ?? 0;
 }
 
+/**
+ * Writes several records across stores in ONE transaction — either all
+ * succeed or none do. Used to keep a profile and its photos consistent.
+ */
+export async function dbTransactionalWrite(
+  operations: { store: string; type: "put" | "delete"; value?: unknown; key?: string }[],
+): Promise<void> {
+  const db = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    let tx: IDBTransaction;
+    try {
+      tx = db.transaction(
+        [...new Set(operations.map((op) => op.store))],
+        "readwrite",
+      );
+    } catch (error) {
+      reject(mapStorageError(error));
+      return;
+    }
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(mapStorageError(tx.error ?? new Error("Transaction aborted")));
+    tx.onerror = () => reject(mapStorageError(tx.error ?? new Error("Transaction error")));
+    try {
+      for (const op of operations) {
+        const store = tx.objectStore(op.store);
+        if (op.type === "put") store.put(op.value as never);
+        else if (op.key !== undefined) store.delete(op.key);
+      }
+    } catch (error) {
+      reject(mapStorageError(error));
+    }
+  });
+}
+
 /** Deletes every asset belonging to a person in one transaction. */
 export async function deleteAssetsForPerson(personId: string): Promise<void> {
   const db = await openDatabase();
   await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_ASSETS, "readwrite");
-    const index = tx.objectStore(STORE_ASSETS).index("personId");
-    const cursorRequest = index.openCursor(IDBKeyRange.only(personId));
-    cursorRequest.onsuccess = () => {
-      const cursor = cursorRequest.result;
-      if (cursor) {
-        cursor.delete();
-        cursor.continue();
-      }
-    };
+    let tx: IDBTransaction;
+    try {
+      tx = db.transaction(STORE_ASSETS, "readwrite");
+    } catch (error) {
+      reject(mapStorageError(error));
+      return;
+    }
     tx.oncomplete = () => resolve();
-    tx.onabort = () => reject(tx.error ?? new Error("Transaction aborted"));
-    tx.onerror = () => reject(tx.error ?? new Error("Transaction error"));
+    tx.onabort = () => reject(mapStorageError(tx.error ?? new Error("Transaction aborted")));
+    tx.onerror = () => reject(mapStorageError(tx.error ?? new Error("Transaction error")));
+    try {
+      const index = tx.objectStore(STORE_ASSETS).index("personId");
+      const cursorRequest = index.openCursor(IDBKeyRange.only(personId));
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (cursor) {
+          cursor.delete();
+          cursor.continue();
+        }
+      };
+      cursorRequest.onerror = () => {
+        try {
+          tx.abort();
+        } catch {}
+      };
+    } catch (error) {
+      reject(mapStorageError(error));
+    }
   });
 }

@@ -1,5 +1,5 @@
 import { DESCRIPTOR_LENGTH } from "@/lib/recognition/config";
-import { isValidDescriptor } from "@/lib/recognition/matching";
+import { isFiniteVector } from "@/lib/recognition/metrics";
 import type { EnrollmentPhoto, PersonProfile } from "@/lib/types/person";
 import { generateId } from "./profiles";
 
@@ -110,7 +110,9 @@ export function validateAndParseImport(raw: unknown): ImportResult {
       result.skipped.push(`${label} (${name}): missing recognition data.`);
       return;
     }
-    const rawDescriptors = p.descriptors.filter(isValidDescriptor).map((d) => d.slice());
+    // NB: wrapped in an arrow — passing isFiniteVector directly would leak
+    // the array index into its optional `length` argument.
+    const rawDescriptors = p.descriptors.filter((d) => isFiniteVector(d)).map((d) => d.slice());
     const rawPhotoRefs = Array.isArray(p.enrollmentPhotos) ? p.enrollmentPhotos : [];
     if (rawPhotoRefs.length > 20) {
       result.skipped.push(`${label} (${name}): too many recognition photos.`);

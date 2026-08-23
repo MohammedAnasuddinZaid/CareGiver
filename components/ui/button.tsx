@@ -9,7 +9,7 @@ const base =
   "inline-flex items-center justify-center gap-2 font-semibold rounded-full transition-all duration-200 select-none focus-visible:outline-none disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-accent text-white hover:bg-accent-strong shadow-soft hover:shadow-lift",
+  primary: "btn-sheen bg-accent text-white hover:bg-accent-strong shadow-soft hover:shadow-lift",
   secondary:
     "bg-surface text-ink border border-line hover:border-accent hover:text-accent shadow-soft",
   ghost: "text-ink-soft hover:text-ink hover:bg-surface-muted",

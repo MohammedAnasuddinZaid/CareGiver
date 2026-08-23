@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, Info, TriangleAlert } from "lucide-react";
 
 type ToastKind = "success" | "info" | "error";
@@ -39,17 +40,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         aria-atomic="false"
         className="pointer-events-none fixed inset-x-0 bottom-24 z-[90] flex flex-col items-center gap-2 px-4 md:bottom-8"
       >
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="animate-fade-up pointer-events-auto flex max-w-md items-center gap-3 rounded-full bg-ink px-5 py-3 text-base font-medium text-canvas shadow-lift"
-          >
-            {item.kind === "success" && <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />}
-            {item.kind === "info" && <Info className="h-5 w-5 shrink-0 text-teal-300" />}
-            {item.kind === "error" && <TriangleAlert className="h-5 w-5 shrink-0 text-rose-300" />}
-            <span>{item.message}</span>
-          </div>
-        ))}
+        <AnimatePresence>
+          {items.map((item) => (
+            <motion.div
+              key={item.id}
+              layout
+              initial={{ opacity: 0, y: 24, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              className="pointer-events-auto flex max-w-md items-center gap-3 rounded-full bg-ink px-5 py-3 text-base font-medium text-canvas shadow-lift"
+            >
+              {item.kind === "success" && <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />}
+              {item.kind === "info" && <Info className="h-5 w-5 shrink-0 text-teal-300" />}
+              {item.kind === "error" && <TriangleAlert className="h-5 w-5 shrink-0 text-rose-300" />}
+              <span>{item.message}</span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   );

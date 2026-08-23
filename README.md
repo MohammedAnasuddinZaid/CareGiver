@@ -75,24 +75,49 @@ how it's displayed.
 ```
 camera frame (sampled ~4×/s, inference never overlaps)
   ↓
-TinyFaceDetector (inputSize 320) → face boxes
+TinyFaceDetector at ADAPTIVE resolution (320/256/224, latency-driven governor)
   ↓
 68-point landmarks → 128-D face descriptor (face-api.js / TensorFlow.js)
   ↓
-compare against every enrolled descriptor per person (min distance wins)
+L2-normalized open-set matching against every enrolled descriptor
   ↓
-threshold gate (balanced = 0.55 euclidean; cautious 0.50 / permissive 0.62)
+three safety layers:
+  ① threshold gate        best distance ≤ T (balanced 0.55 ≈ cos θ ≥ 0.85)
+  ② ambiguity margin      if two people are near-equidistant in the
+                          uncertainty band → refuse to guess
+  ③ logistic confidence   c = σ(k·(T−d)) weights each piece of evidence
   ↓
-IdentityStabilizer — rolling buffer of 8 observations,
-an identity needs 5 agreeing frames; recognized identities hold
-for 3 s through brief dropouts; unknown appears only after a 700 ms debounce
+IoU box tracker + per-coordinate One-Euro filtering (calm overlays)
+  ↓
+temporal stabilization — exponentially-decayed evidence voting with
+Schmitt-trigger hysteresis (enter ≥ 2.15, exit < 0.9, τ = 650 ms):
+identities appear after several agreeing frames, ride through dropouts,
+and switch only when a newcomer independently wins
   ↓
 UI state + speech announcement (30 s cooldown per person)
 ```
 
-**Safety rule:** if the best match is above threshold, the system says
-*"I don't recognize this person yet"* rather than guessing. A wrong name is
-more harmful than an honest unknown.
+**Recognition mathematics**
+
+- **Direction-only comparison.** Descriptors are L2-normalized; Euclidean
+  distance on unit vectors equals `√(2−2·cos θ)`, making matches purely
+  angular and magnitude-invariant.
+- **Open-set safety.** A Lowe-style margin test rejects ambiguous frames:
+  when `secondBest − best` is small *and* the best distance sits inside the
+  uncertainty band `[0.42, 0.62]`, the frame abstains instead of voting.
+- **Calibrated evidence, not votes.** Each frame contributes its logistic
+  confidence to an accumulator that decays as `e^(−Δt/τ)`; hysteresis bands
+  prevent flicker at decision boundaries.
+- **One-Euro filtering** (Casiez et al., CHI 2012) keeps tracked face boxes
+  smooth at low speed yet responsive to fast movement.
+- **Adaptive compute**: an EWMA of real inference latency promotes/demotes
+  detector resolution tiers with a change cooldown.
+- **Enrollment quality gates**, computed locally: Laplacian-variance blur
+  measure, mean-luminance exposure check, and a landmark-geometry yaw proxy.
+
+**Safety rule:** if the best match is above threshold or ambiguous, the
+system says *"I don't recognize this person yet"* rather than guessing.
+A wrong name is more harmful than an honest unknown.
 
 ### Where your data lives
 
@@ -113,6 +138,7 @@ recognition path.
 
 - [Next.js 14](https://nextjs.org) (App Router) + React 18 + TypeScript
 - [Tailwind CSS](https://tailwindcss.com) design system (warm neutrals + teal accent, high-contrast theme)
+- [Framer Motion](https://www.framer.com/motion/) — spring-physics UI: 3D tilt cards with glare, staggered hero reveals, `AnimatePresence` identity transitions, spring toasts/modals (all disabled under reduced-motion)
 - [@vladmandic/face-api](https://github.com/vladmandic/face-api) (MIT) — maintained fork of face-api.js running on TensorFlow.js (Apache-2.0), WebGL-accelerated
 - Pre-trained weights bundled in `public/models` (tiny face detector ≈190 KB, 68-point landmarks ≈350 KB, face recognition ≈6.2 MB)
 - IndexedDB via a small hand-rolled promise wrapper (versioned schema, migration-ready)
@@ -185,14 +211,22 @@ tests/                  # unit tests: matching, smoothing, speech, storage, impo
 
 ## Testing
 
-36 unit tests cover the parts that must never regress:
+71 unit tests cover the parts that must never regress:
 
-- descriptor matching, threshold behavior and **unknown rejection**
-- temporal stabilization (stabilization delay, hold-through-dropout,
-  independent identity switching, unknown debounce)
+- **math core**: L2 normalization, cosine/normalized-distance identities,
+  logistic confidence calibration
+- descriptor matching, threshold behavior, **ambiguity-margin rejection** and
+  **unknown rejection**
+- temporal stabilization (enter delay, hysteresis ride-through, weak-evidence
+  behavior, independent identity switching, unknown debounce)
+- IoU geometry + box tracker association + One-Euro jitter suppression
+- adaptive perf-governor tier changes and cooldowns
+- enrollment quality gates (Laplacian sharpness, luminance, yaw proxy)
 - voice guidance cooldown/dedup semantics
-- backup import validation (malformed files are skipped safely, no HTML can enter as an image)
-- IndexedDB profile lifecycle including cascade deletes
+- backup import validation (malformed files are skipped safely,
+  prototype-pollution immune, no HTML can enter as an image)
+- IndexedDB profile lifecycle, cascade deletes, and corrupted-record
+  sanitization
 
 Run with `npm test`.
 

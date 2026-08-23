@@ -1,4 +1,4 @@
-export type EnrollmentFailureReason = "no-face" | "multiple-faces" | "face-too-small";
+export type EnrollmentFailureReason = "no-face" | "multiple-faces" | "face-too-small" | "unreadable";
 
 /** Human guidance for enrollment validation outcomes. */
 export const ENROLLMENT_REASONS: Record<
@@ -16,5 +16,9 @@ export const ENROLLMENT_REASONS: Record<
   "face-too-small": {
     title: "The face is difficult to read",
     body: "Move closer or use better lighting, then try again.",
+  },
+  unreadable: {
+    title: "This photo is too blurry to use",
+    body: "Hold steady or retake it with better focus.",
   },
 };

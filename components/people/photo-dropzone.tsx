@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import clsx from "clsx";
 import { CheckCircle2, ImageUp, TriangleAlert } from "lucide-react";
 import { ENROLLMENT_REASONS } from "@/lib/recognition/enrollment-reasons";
+import { useToast } from "@/components/ui/toast";
 
 export interface PendingPhoto {
   id: string;
@@ -31,6 +32,7 @@ export function PhotoDropzone({
   const inputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<AnalyzeState>({ phase: "idle" });
   const [dragging, setDragging] = useState(false);
+  const { toast } = useToast();
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -71,6 +73,10 @@ export function PhotoDropzone({
           thumb,
           descriptor: result.descriptor,
         });
+        // Quality analysis is advisory — accept the photo but share hints.
+        const hint = result.quality.warnings[0];
+        if (hint) toast(hint, "info");
+        else toast("Face found — recognition profile updated.");
         setState({ phase: "idle" });
       } catch (error) {
         setState({
@@ -82,7 +88,7 @@ export function PhotoDropzone({
         });
       }
     },
-    [onPhoto],
+    [onPhoto, toast],
   );
 
   const disabled = (maxPhotos ?? Infinity) <= (currentCount ?? 0);

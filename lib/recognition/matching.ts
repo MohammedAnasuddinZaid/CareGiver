@@ -1,70 +1,152 @@
-import { DESCRIPTOR_LENGTH } from "./config";
-import type { MatchOutcome, ProfileLike } from "./types";
+import { recognitionConfig } from "./config";
+import { confidenceFromDistance, isFiniteVector, l2Normalize, normalizedEuclidean } from "./metrics";
+import type { FaceBox, ProfileLike } from "./types";
 
-export function isValidDescriptor(value: unknown): value is number[] {
-  return (
-    Array.isArray(value) &&
-    value.length === DESCRIPTOR_LENGTH &&
-    value.every((n) => typeof n === "number" && Number.isFinite(n))
-  );
+export interface MatchOptions {
+  threshold: number;
+  ambiguityMargin?: number;
+  uncertaintyBand?: readonly [number, number];
+  confidenceSlope?: number;
 }
 
-/** Euclidean distance between two face descriptors (face-api.js convention). */
-export function euclideanDistance(a: number[], b: number[]): number {
-  const n = Math.min(a.length, b.length);
-  let sum = 0;
-  for (let i = 0; i < n; i++) {
-    const d = a[i] - b[i];
-    sum += d * d;
-  }
-  return Math.sqrt(sum);
+export interface DetailedMatch {
+  /** "recognized" | "unknown" — unknown wins over wrong identity. */
+  status: "recognized" | "unknown";
+  personId: string | null;
+  /** Best distance in L2-normalized descriptor space (null when no data). */
+  distance: number | null;
+  /** Logistic-calibrated confidence in [0,1] (0 when unknown). */
+  confidence: number;
+  /** Gap to the runner-up person; small gaps inside the band are ambiguous. */
+  margin: number | null;
+  rejectedBy: "threshold" | "ambiguity" | "no-profiles" | null;
 }
 
 /**
- * Best distance between a query descriptor and a profile.
- * A person may have several enrollment photos — the closest one wins,
- * which makes recognition robust to angles/lighting changes.
+ * Distance between a live descriptor and one profile.
+ * A person may hold several enrollment descriptors — the minimum
+ * (nearest angular neighbor) represents them, which keeps recognition
+ * robust across angles and lighting while remaining conservative.
  */
 export function compareDescriptorToProfile(
   query: number[],
   profile: ProfileLike,
 ): { personId: string; distance: number } {
+  const nq = l2Normalize(query);
   let best = Infinity;
-  for (const candidate of profile.descriptors ?? []) {
-    if (!isValidDescriptor(candidate)) continue;
-    const d = euclideanDistance(query, candidate);
-    if (d < best) best = d;
+  if (nq) {
+    for (const candidate of profile.descriptors ?? []) {
+      if (!isFiniteVector(candidate)) continue;
+      const d = normalizedEuclidean(nq, candidate);
+      if (d < best) best = d;
+    }
   }
   return { personId: profile.id, distance: best };
 }
 
 /**
- * Identify a live descriptor against locally enrolled profiles.
- * IMPORTANT SAFETY BEHAVIOR: if the best match is above `threshold`, the
- * result is "unknown" — we never hand back "the least-distant stranger".
+ * Open-set identification with three safety layers:
+ *
+ * 1. THRESHOLD — the best candidate must sit within the configured
+ *    distance threshold, else the result is unknown.
+ * 2. AMBIGUITY — when the best distance lies inside the uncertainty band,
+ *    a runner-up closer than `ambiguityMargin` forces unknown too.
+ *    ("Is it Mom or Dad?" must never be answered by a coin flip.)
+ * 3. CONFIDENCE — a logistic calibration used downstream to weight
+ *    temporal evidence; weak matches accumulate votes slowly.
  */
+export function identifyFaceDetailed(
+  query: number[],
+  profiles: ProfileLike[],
+  options: MatchOptions,
+): DetailedMatch {
+  const {
+    threshold,
+    ambiguityMargin = recognitionConfig.matching.ambiguityMargin,
+    uncertaintyBand = [
+      recognitionConfig.matching.uncertaintyBandLow,
+      recognitionConfig.matching.uncertaintyBandHigh,
+    ] as const,
+    confidenceSlope = recognitionConfig.matching.confidenceSlope,
+  } = options;
+
+  if (profiles.length === 0 || !isFiniteVector(query)) {
+    return {
+      status: "unknown",
+      personId: null,
+      distance: null,
+      confidence: 0,
+      margin: null,
+      rejectedBy: profiles.length === 0 ? "no-profiles" : "threshold",
+    };
+  }
+
+  let bestPersonId: string | null = null;
+  let bestDistance = Infinity;
+  let secondDistance = Infinity;
+
+  for (const profile of profiles) {
+    const { personId, distance } = compareDescriptorToProfile(query, profile);
+    if (!Number.isFinite(distance)) continue;
+    if (distance < bestDistance) {
+      secondDistance = bestDistance;
+      bestDistance = distance;
+      bestPersonId = personId;
+    } else if (distance < secondDistance) {
+      secondDistance = distance;
+    }
+  }
+
+  const base: DetailedMatch = {
+    status: "unknown",
+    personId: null,
+    distance: Number.isFinite(bestDistance) ? bestDistance : null,
+    confidence: 0,
+    margin:
+      Number.isFinite(bestDistance) && Number.isFinite(secondDistance)
+        ? secondDistance - bestDistance
+        : null,
+    rejectedBy: null,
+  };
+
+  if (bestPersonId === null) {
+    return { ...base, rejectedBy: "no-profiles" };
+  }
+  if (bestDistance > threshold) {
+    return { ...base, rejectedBy: "threshold" };
+  }
+  const [bandLow, bandHigh] = uncertaintyBand;
+  if (
+    base.margin !== null &&
+    base.margin < ambiguityMargin &&
+    bestDistance >= bandLow &&
+    bestDistance <= bandHigh
+  ) {
+    return { ...base, rejectedBy: "ambiguity" };
+  }
+
+  return {
+    status: "recognized",
+    personId: bestPersonId,
+    distance: bestDistance,
+    confidence: confidenceFromDistance(bestDistance, threshold, confidenceSlope),
+    margin: base.margin,
+    rejectedBy: null,
+  };
+}
+
+/** Back-compatible simple matcher built on the detailed pipeline. */
 export function identifyFace(
   query: number[],
   profiles: ProfileLike[],
   threshold: number,
-): MatchOutcome {
-  let bestPersonId: string | null = null;
-  let bestDistance = Infinity;
-  for (const profile of profiles) {
-    const { distance } = compareDescriptorToProfile(query, profile);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      bestPersonId = profile.id;
-    }
-  }
-  if (bestPersonId !== null && bestDistance <= threshold) {
-    return { status: "recognized", personId: bestPersonId, distance: bestDistance };
-  }
-  return { status: "unknown", personId: null, distance: null };
+): { status: "recognized" | "unknown"; personId: string | null; distance: number | null } {
+  const m = identifyFaceDetailed(query, profiles, { threshold });
+  return { status: m.status, personId: m.personId, distance: m.distance };
 }
 
 /** Primary face selection: recognized beats larger, larger beats more central. */
-export function selectPrimaryFace<T extends { box: { width: number; height: number }; matched?: boolean }>(
+export function selectPrimaryFace<T extends { box: FaceBox; matched?: boolean }>(
   faces: T[],
 ): number {
   if (faces.length === 0) return -1;

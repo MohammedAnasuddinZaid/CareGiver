@@ -10,6 +10,7 @@ import {
   removeEnrollmentPhoto,
   updatePerson,
 } from "@/lib/storage/profiles";
+import { dbPut as dbPutRaw, STORE_PROFILES } from "@/lib/storage/db";
 
 function descriptor(seed = 1): number[] {
   return Array.from({ length: 128 }, (_, i) => Math.sin(seed + i) / 10);
@@ -138,5 +139,33 @@ describe("local profile service (IndexedDB)", () => {
       descriptors: [descriptor(11)],
     });
     expect(enrolled.descriptors.length).toBeGreaterThan(0);
+  });
+
+  it("sanitizes corrupted records from storage instead of crashing", async () => {
+    // A record with recoverable garbage: kept, but coerced to a safe shape.
+    await dbPutRaw(STORE_PROFILES, {
+      id: "broken-but-kept",
+      name: "Broken",
+      relationship: null,
+      descriptors: ["garbage", { nope: true }],
+      enrollmentPhotos: "not-an-array",
+      age: 9999,
+    });
+    // A record missing the keyPath property violates storage integrity and
+    // is rejected by IndexedDB itself — even before sanitization matters.
+    await expect(
+      dbPutRaw(STORE_PROFILES, { name: "no id here" }),
+    ).rejects.toThrow();
+
+    const people = await getPeople();
+    const broken = people.find((p) => p.id === "broken-but-kept");
+    expect(broken).toBeDefined();
+    expect(broken!.relationship).toBe("");
+    expect(broken!.age).toBeUndefined();
+    expect(Array.isArray(broken!.enrollmentPhotos)).toBe(true);
+    expect(broken!.enrollmentPhotos).toHaveLength(0);
+    expect(broken!.descriptors).toHaveLength(0);
+
+    expect(people.some((p) => p.name === "no id here")).toBe(false);
   });
 });

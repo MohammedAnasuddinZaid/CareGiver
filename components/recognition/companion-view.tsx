@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import {
   ArrowLeft,
@@ -30,6 +31,10 @@ const CAMERA_MESSAGES = {
   "in-use": {
     title: "The camera is busy right now.",
     body: "Close other apps using it, then try again.",
+  },
+  ended: {
+    title: "The camera stopped unexpectedly.",
+    body: "It may have been unplugged or used by another app. Try again when you're ready.",
   },
   insecure: {
     title: "Camera needs a secure connection.",
@@ -119,6 +124,11 @@ export function CompanionView() {
         />
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
 
+        {/* Scanning sweep while identifying */}
+        {cameraStatus === "ready" && modelStatus === "ready" && stableKind === "identifying" && (
+          <div aria-hidden className="scan-sweep" />
+        )}
+
         {/* Privacy chip */}
         <span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-black/45 px-3.5 py-1.5 text-sm font-medium text-teal-200 backdrop-blur">
           <Lock className="h-3.5 w-3.5" aria-hidden />
@@ -167,37 +177,55 @@ function IdentityArea({
   personRelationship: string | null;
   description: string | null;
 }) {
-  if (kind === "recognized" && personName) {
-    return (
-      <div key={personName} className="animate-fade-up">
-        <p className="identity-name font-bold leading-tight tracking-tight text-white">{personName}</p>
-        <p className="identity-relation mt-1 font-semibold text-teal-300">{relationshipLine(personRelationship)}</p>
-        {description && (
-          <p className="identity-description mt-3 leading-snug text-slate-300">“{description}”</p>
-        )}
-        <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-4 py-1.5 text-base font-semibold text-emerald-300">
-          <span className="h-2 w-2 animate-pulse-soft rounded-full bg-emerald-400" aria-hidden />
-          Recognized
-        </p>
-      </div>
-    );
-  }
-  if (kind === "unknown") {
-    return (
-      <div key="unknown" className="animate-fade-in">
-        <p className="text-2xl font-semibold leading-relaxed text-slate-200 md:text-3xl">
-          I don’t recognize this person yet.
-        </p>
-        <p className="mt-2 text-lg text-slate-400">A caregiver can add them to your trusted circle.</p>
-      </div>
-    );
-  }
-  // identifying / scanning
+  const key =
+    kind === "recognized" && personName ? `recognized:${personName}` : kind;
+
   return (
-    <div className="animate-pulse-soft">
-      <p className="text-2xl font-semibold text-slate-200 md:text-3xl">Looking for someone familiar…</p>
-      <p className="mt-2 text-lg text-slate-400">Move into view when you’re ready.</p>
-    </div>
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={key}
+        initial={{ opacity: 0, y: 18, scale: 0.96, filter: "blur(6px)" }}
+        animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+        exit={{ opacity: 0, y: -12, scale: 0.98, filter: "blur(4px)" }}
+        transition={
+          kind === "recognized"
+            ? { type: "spring", stiffness: 260, damping: 24, mass: 0.9 }
+            : { duration: 0.28, ease: [0.22, 1, 0.36, 1] }
+        }
+        className="text-center"
+      >
+        {kind === "recognized" && personName ? (
+          <>
+            <p className="identity-name text-gradient font-bold leading-tight tracking-tight">{personName}</p>
+            <p className="identity-relation mt-1 font-semibold text-teal-300">{relationshipLine(personRelationship)}</p>
+            {description && (
+              <p className="identity-description mt-3 leading-snug text-slate-300">“{description}”</p>
+            )}
+            <motion.p
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.18, type: "spring", stiffness: 300, damping: 20 }}
+              className="ping-ring mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-4 py-1.5 text-base font-semibold text-emerald-300"
+            >
+              <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+              Recognized
+            </motion.p>
+          </>
+        ) : kind === "unknown" ? (
+          <>
+            <p className="text-2xl font-semibold leading-relaxed text-slate-200 md:text-3xl">
+              I don’t recognize this person yet.
+            </p>
+            <p className="mt-2 text-lg text-slate-400">A caregiver can add them to your trusted circle.</p>
+          </>
+        ) : (
+          <>
+            <p className="text-2xl font-semibold text-slate-200 md:text-3xl">Looking for someone familiar…</p>
+            <p className="mt-2 text-lg text-slate-400">Move into view when you’re ready.</p>
+          </>
+        )}
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -293,10 +321,16 @@ function DebugStats({ data, faceCount }: { data: NonNullable<ReturnType<typeof u
     <span className="hidden gap-3 font-mono text-xs sm:inline-flex" aria-hidden>
       <span>{Math.round(data.latencyMs)}ms</span>
       <span>{data.samplesPerSecond.toFixed(1)}/s</span>
+      <span>tier:{data.perfTier}</span>
       <span>faces:{faceCount}</span>
+      <span>c:{data.confidence.toFixed(2)}</span>
       <span>
         d:{data.distance != null ? data.distance.toFixed(3) : "—"} / θ{data.threshold.toFixed(2)}
       </span>
+      {data.margin != null && <span>Δ{data.margin.toFixed(3)}</span>}
+      {data.rejectedBy !== "threshold" && data.rejectedBy !== "ambiguity" && (
+        <span className="text-amber-400">{data.rejectedBy}</span>
+      )}
     </span>
   );
 }
