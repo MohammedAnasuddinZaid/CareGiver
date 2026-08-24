@@ -25,7 +25,10 @@ import {
   EXPORT_SCHEMA_VERSION,
   validateAndParseImport,
 } from "@/lib/storage/data-transfer";
+import { clearAbilityAndProgress } from "@/lib/storage/progress";
+import { clearReminders } from "@/lib/storage/reminders";
 import type { PersonProfile } from "@/lib/types/person";
+import { LOCALES, LOCALE_META } from "@/lib/i18n/locales";
 
 export default function SettingsPage() {
   const { settings, update } = useSettings();
@@ -203,6 +206,38 @@ export default function SettingsPage() {
         </Card>
       </section>
 
+      <section aria-labelledby="language-heading" className="mt-12">
+        <SectionTitle
+          title="Language"
+          subtitle="For games, reminders and spoken guidance — including NER languages."
+        />
+        <span id="language-heading" className="sr-only">Language</span>
+        <Card className="p-6 md:p-8">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {LOCALES.map((code) => (
+              <button
+                key={code}
+                onClick={() => update({ locale: code })}
+                aria-pressed={settings.locale === code}
+                className={
+                  "min-h-[56px] rounded-2xl border-2 px-4 py-2 text-lg font-bold transition-colors " +
+                  (settings.locale === code
+                    ? "border-accent bg-accent-soft text-accent"
+                    : "border-line text-ink hover:border-accent/50")
+                }
+              >
+                {LOCALE_META[code].label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-4 flex items-start gap-2 text-base text-ink-soft">
+            <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" aria-hidden />
+            Spoken voice quality varies by device for some regional languages;
+            pre-recorded voice packs are used when available.
+          </p>
+        </Card>
+      </section>
+
       <section aria-labelledby="accessibility-heading" className="mt-12">
         <SectionTitle title="Accessibility" />
         <span id="accessibility-heading" className="sr-only">Accessibility settings</span>
@@ -298,13 +333,15 @@ export default function SettingsPage() {
         onConfirm={async () => {
           try {
             await clearAllData();
-            toast("All profiles and recognition data were deleted from this device.");
+            await clearAbilityAndProgress();
+            await clearReminders();
+            toast("All profiles, progress and reminders were deleted from this device.");
           } catch {
             toast("Could not delete data in this session.", "error");
           }
         }}
         title="Delete all local data?"
-        body="This permanently removes every person, photo and recognition descriptor from this device. This cannot be undone."
+        body="This permanently removes every person, photo, recognition descriptor, game history and reminder from this device. This cannot be undone."
         confirmLabel="Delete everything"
       />
     </div>

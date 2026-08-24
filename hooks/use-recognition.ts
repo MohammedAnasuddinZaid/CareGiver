@@ -15,6 +15,7 @@ import {
 import { identifyFaceDetailed, selectPrimaryFace } from "@/lib/recognition/matching";
 import { IdentityStabilizer } from "@/lib/recognition/stabilizer";
 import { BoxTracker } from "@/lib/recognition/tracker";
+import { DescriptorMemory } from "@/lib/recognition/descriptor-memory";
 import { PerfGovernor } from "@/lib/recognition/perf-governor";
 import { SpeechGuide } from "@/lib/speech/speech-service";
 import { spokenIdentityPhrase } from "@/lib/utils/format";
@@ -59,6 +60,7 @@ export function useRecognition({ active }: RecognitionArgs) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stabilizerRef = useRef<IdentityStabilizer>(new IdentityStabilizer(recognitionConfig));
   const trackerRef = useRef<BoxTracker>(new BoxTracker(recognitionConfig.tracker));
+  const descriptorMemoryRef = useRef<DescriptorMemory>(new DescriptorMemory());
   const governorRef = useRef<PerfGovernor>(new PerfGovernor(recognitionConfig.performance));
   const speechRef = useRef<SpeechGuide>(new SpeechGuide());
   const busyRef = useRef(false);
@@ -149,13 +151,19 @@ export function useRecognition({ active }: RecognitionArgs) {
 
     const tick = async () => {
       if (stopRef.current) return;
+      // Period-based cadence: the sample interval covers the WHOLE cycle
+      // (inference + wait). The old code slept the full interval AFTER
+      // inference, so the real period was interval + inference — which
+      // pushed the stabilizer's evidence ceiling below its enter threshold
+      // and made recognition mathematically unreachable. See config.temporal.
+      const startedAt = performance.now();
       if (document.hidden || busyRef.current) {
-        scheduleNext();
+        scheduleNext(document.hidden ? recognitionConfig.sampleIntervalMs : 80);
         return;
       }
       const video = videoRef.current;
       if (!video || video.readyState < 2 || video.videoWidth === 0) {
-        scheduleNext();
+        scheduleNext(80);
         return;
       }
       busyRef.current = true;
@@ -179,15 +187,11 @@ export function useRecognition({ active }: RecognitionArgs) {
           t0,
         );
 
-        // Match each detection independently, then re-attach by position:
-        // the primary selection uses the smoothed tracked boxes.
-        const identified = faces.map((face) => {
-          const match = identifyFaceDetailed(face.descriptor, people, { threshold });
-          return { box: face.box, matched: match.status === "recognized", personId: match.personId, confidence: match.confidence, distance: match.distance, margin: match.margin, rejectedBy: match.rejectedBy };
-        });
-
-        // Associate each smoothed track with its nearest detection's identity.
-        const enriched = tracked.map((t) => {
+        // Associate each smoothed track with its nearest detection BEFORE
+        // matching, so descriptor memory blends frames of the same physical
+        // face. Averaging cuts angular noise (~√N): true matches fall well
+        // below threshold, impostors stay near √2.
+        const detectionForTrack = tracked.map((t) => {
           let bestIdx = -1;
           let bestDist = Infinity;
           for (let i = 0; i < faces.length; i++) {
@@ -200,18 +204,33 @@ export function useRecognition({ active }: RecognitionArgs) {
               bestIdx = i;
             }
           }
-          const m = bestIdx >= 0 ? identified[bestIdx] : null;
+          return bestIdx;
+        });
+
+        const enriched = tracked.map((t, ti) => {
+          const detIdx = detectionForTrack[ti];
+          const face = detIdx >= 0 ? faces[detIdx] : null;
+          let match: ReturnType<typeof identifyFaceDetailed> | null = null;
+          if (face) {
+            const smoothed = descriptorMemoryRef.current.update(
+              String(t.trackId),
+              face.descriptor,
+              t0,
+            );
+            if (smoothed) match = identifyFaceDetailed(smoothed, people, { threshold });
+          }
           return {
             box: t.box,
             hits: t.hits,
-            matched: m?.matched ?? false,
-            personId: m?.personId ?? null,
-            confidence: m?.confidence ?? 0,
-            distance: m?.distance ?? null,
-            margin: m?.margin ?? null,
-            rejectedBy: m?.rejectedBy ?? null,
+            matched: match?.status === "recognized",
+            personId: match?.personId ?? null,
+            confidence: match?.confidence ?? 0,
+            distance: match?.distance ?? null,
+            margin: match?.margin ?? null,
+            rejectedBy: match?.rejectedBy ?? "no-face",
           };
         });
+        descriptorMemoryRef.current.retain(tracked.map((t) => String(t.trackId)));
 
         drawTrackedBoxes(enriched);
 
@@ -288,14 +307,17 @@ export function useRecognition({ active }: RecognitionArgs) {
         // One failed frame must never kill the loop.
       } finally {
         busyRef.current = false;
-        scheduleNext();
+        const elapsed = performance.now() - startedAt;
+        scheduleNext(
+          Math.max(30, recognitionConfig.sampleIntervalMs - elapsed),
+        );
       }
     };
 
-    function scheduleNext() {
+    function scheduleNext(delayMs: number) {
       if (stopRef.current) return;
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(tick, recognitionConfig.sampleIntervalMs);
+      timerRef.current = setTimeout(tick, delayMs);
     }
 
     void tick();
@@ -311,6 +333,7 @@ export function useRecognition({ active }: RecognitionArgs) {
       document.removeEventListener("visibilitychange", onVisibility);
       stabilizerRef.current.reset();
       trackerRef.current.reset();
+      descriptorMemoryRef.current.reset();
       speechRef.current.reset();
       lastUiKeyRef.current = "";
       const canvas = canvasRef.current;

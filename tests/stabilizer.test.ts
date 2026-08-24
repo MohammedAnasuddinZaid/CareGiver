@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { IdentityStabilizer } from "@/lib/recognition/stabilizer";
 import { recognitionConfig } from "@/lib/recognition/config";
+import { steadyStateWeight } from "@/lib/recognition/descriptor-memory";
 
 const cfg = recognitionConfig;
 const T = cfg.temporal;
-const STEP = 260; // matches the live sample interval
+const STEP = recognitionConfig.sampleIntervalMs; // true period, inference included
 
 /** Feed observations at a fixed cadence; return all outputs. */
 function feed(
@@ -26,12 +27,34 @@ function feed(
   return { out, end: t };
 }
 
+describe("IdentityStabilizer — reachability (regression guard)", () => {
+  it("evidence ceiling EXCEEDS the enter threshold even on slow devices", () => {
+    // Regression: the original constants (enter 2.15, tau 650) had a
+    // discrete-time ceiling of c/(1−e^(−Δt/τ)) that sat BELOW the enter
+    // threshold for any realistic cycle ≥ ~350 ms — the engine could never
+    // recognize anyone. This test pins reachability at a pessimistic
+    // 500 ms full-cycle cadence (weak laptop / CPU backend).
+    const cycle = Math.max(recognitionConfig.sampleIntervalMs, 500);
+    const ceiling = steadyStateWeight(0.999, cycle, T.tauMs);
+    expect(ceiling).toBeGreaterThan(T.enterWeight);
+  });
+
+  it("a typical strong match locks within two frames (~520 ms)", () => {
+    const s = new IdentityStabilizer(cfg);
+    let t = 1000;
+    const r1 = s.observe({ personId: "mom", confidence: 0.86 }, t);
+    const r2 = s.observe({ personId: "mom", confidence: 0.86 }, t + STEP);
+    expect(r1.kind).toBe("identifying");
+    expect(r2.kind).toBe("recognized");
+    expect(r2.personId).toBe("mom");
+  });
+});
+
 describe("IdentityStabilizer — decayed evidence + hysteresis", () => {
-  it("needs several agreeing frames to ENTER recognized state", () => {
+  it("does NOT lock on the first agreeing frame alone", () => {
     const s = new IdentityStabilizer(cfg);
     const { out } = feed(s, [{ id: "mom" }, { id: "mom" }, { id: "mom" }, { id: "mom" }]);
     expect(out[0].kind).toBe("identifying");
-    expect(out[1].kind).toBe("identifying");
     expect(out[out.length - 1].kind).toBe("recognized");
     expect(out[out.length - 1].personId).toBe("mom");
   });
@@ -104,7 +127,7 @@ describe("IdentityStabilizer — decayed evidence + hysteresis", () => {
       { id: "dad" },
     ], end + 10_000);
     const dadFrame = out.findIndex((r) => r.kind === "recognized" && r.personId === "dad");
-    expect(dadFrame).toBeGreaterThanOrEqual(2); // needs several frames of his own
+    expect(dadFrame).toBeGreaterThanOrEqual(1); // needs his own evidence, never instant
     for (const r of out.slice(0, dadFrame)) {
       expect(r.personId).not.toBe("dad");
     }

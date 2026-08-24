@@ -51,11 +51,20 @@ export const recognitionConfig = {
    *   which rides through brief detection dropouts without flicker.
    * - Switching identities requires the newcomer to independently satisfy
    *   the enter criterion — the previous person is held meanwhile.
+   *
+   * Control-theory tuning (verified against the discrete fixed point):
+   * the accumulator obeys w ← w·k + c with k = exp(−Δt/τ), giving steady
+   * state w* = c/(1−k). With a TRUE period-based 260 ms cadence and
+   * τ = 900 ms, k = 0.75 so w* ≈ 4·c — comfortably above enterWeight for
+   * any plausible match, while enterWeight = 1.35 locks a typical strong
+   * match (c ≈ 0.86+) in TWO frames ≈ 520 ms and a marginal one (c ≈ 0.59)
+   * in three ≈ 780 ms. Hysteresis ratio 0.55/1.35 preserves flicker
+   * immunity; dropout ride-through ≈ τ·ln(w/exit) ≈ 0.9–1.6 s.
    */
   temporal: {
-    tauMs: 650,
-    enterWeight: 2.15,
-    exitWeight: 0.9,
+    tauMs: 900,
+    enterWeight: 1.35,
+    exitWeight: 0.55,
     maxWeight: 4.0,
     pruneAfterMs: 4500,
     unknownDebounceMs: 700,

@@ -43,6 +43,31 @@ async function importFaceApi(): Promise<FaceApiModule> {
   return import("@vladmandic/face-api");
 }
 
+/**
+ * Compiles WebGL kernels before the first real camera frame.
+ * Without this, the first live inference pays a one-time shader JIT cost
+ * of 0.5–2 s — dead time the user experiences as "it's not recognising".
+ * Best-effort: any failure here is invisible and harmless.
+ */
+async function warmUpKernels(faceapi: FaceApiModule): Promise<void> {
+  if (typeof document === "undefined") return;
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 160;
+    canvas.height = 120;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#1f2430";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await faceapi.detectAllFaces(
+      canvas,
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 }),
+    );
+  } catch {
+    // Warmup is an optimization, never a requirement.
+  }
+}
+
 export async function ensureModelsLoaded(): Promise<FaceApiModule> {
   if (statusValue === "ready" && loadPromise) return loadPromise;
   if (!loadPromise) {
@@ -67,6 +92,7 @@ export async function ensureModelsLoaded(): Promise<FaceApiModule> {
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_BASE_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_BASE_URL);
         await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_BASE_URL);
+        await warmUpKernels(faceapi);
         setStatus("ready");
         errorMessage = null;
         return faceapi;

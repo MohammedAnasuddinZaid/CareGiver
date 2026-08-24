@@ -4,20 +4,37 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import {
+  Brain,
   Heart,
   House,
+  LineChart,
+  CalendarClock,
   ScanFace,
   Settings as SettingsIcon,
   ShieldCheck,
 } from "lucide-react";
 import { Wordmark } from "@/components/logo";
+import { ReminderAlertOverlay } from "@/components/reminders/reminder-alert-overlay";
 
 const NAV = [
   { href: "/", label: "Home", icon: House },
   { href: "/caregiver", label: "People", icon: Heart },
   { href: "/recognition", label: "Companion", icon: ScanFace },
+  { href: "/play", label: "Games", icon: Brain },
+  { href: "/reminders", label: "Reminders", icon: CalendarClock },
+  { href: "/analytics", label: "Progress", icon: LineChart },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
   { href: "/privacy", label: "Privacy", icon: ShieldCheck },
+] as const;
+
+const MOBILE_NAV = [
+  { href: "/", label: "Home", icon: House },
+  { href: "/caregiver", label: "People", icon: Heart },
+  { href: "/play", label: "Games", icon: Brain },
+  { href: "/recognition", label: "Companion", icon: ScanFace, center: true },
+  { href: "/reminders", label: "Alerts", icon: CalendarClock },
+  { href: "/analytics", label: "Progress", icon: LineChart },
+  { href: "/settings", label: "Settings", icon: SettingsIcon },
 ] as const;
 
 function isActive(pathname: string, href: string): boolean {
@@ -30,7 +47,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isCompanion = pathname.startsWith("/recognition");
 
   if (isCompanion) {
-    return <main className="min-h-screen bg-night">{children}</main>;
+    return (
+      <main className="min-h-screen bg-night">
+        {children}
+        <ReminderAlertOverlay />
+      </main>
+    );
   }
 
   const onPrivacyOrAbout =
@@ -92,6 +114,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main id="content" className="flex-1 pb-28 md:pb-10">
         {children}
       </main>
+      <ReminderAlertOverlay />
 
       <footer className="hidden border-t border-line/70 py-8 md:block">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-6 text-center">
@@ -109,10 +132,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Primary mobile"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-line/70 bg-canvas/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
       >
-        <div className="grid grid-cols-5">
-          {NAV.map(({ href, label, icon: Icon }) => {
+        <div className="grid grid-cols-7">
+          {MOBILE_NAV.map(({ href, label, icon: Icon, ...rest }) => {
             const active = isActive(pathname, href);
-            const companion = href === "/recognition";
+            const companion = "center" in rest && rest.center === true;
             return (
               <Link
                 key={href}

@@ -11,11 +11,18 @@
  */
 
 const DB_NAME = "memoryassist-db";
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const STORE_PROFILES = "profiles";
 export const STORE_ASSETS = "assets";
 export const STORE_META = "meta";
+
+// --- v2: cognitive platform stores ---
+export const STORE_SESSIONS = "sessions";
+export const STORE_ABILITY = "ability-states";
+export const STORE_REMINDERS = "reminders";
+export const STORE_REMINDER_LOG = "reminder-log";
+export const STORE_OUTBOX = "outbox";
 
 /** Friendly error for the "disk full" family of failures. */
 export class StorageQuotaError extends Error {
@@ -70,7 +77,24 @@ function upgradeDatabase(db: IDBDatabase, _tx: IDBTransaction | null, oldVersion
     assets.createIndex("personId", "personId");
     db.createObjectStore(STORE_META, { keyPath: "key" });
   }
-  // if (oldVersion < 2) { ...future migration... }
+  if (oldVersion < 2) {
+    // Cognitive platform: game sessions, ability estimates, reminders,
+    // reminder history and the offline sync outbox. All local-only.
+    const sessions = db.createObjectStore(STORE_SESSIONS, { keyPath: "id" });
+    sessions.createIndex("startedAt", "startedAt");
+    sessions.createIndex("game", "game");
+    db.createObjectStore(STORE_ABILITY, { keyPath: "domain" });
+
+    const reminders = db.createObjectStore(STORE_REMINDERS, { keyPath: "id" });
+    reminders.createIndex("time", "time");
+
+    const reminderLog = db.createObjectStore(STORE_REMINDER_LOG, { keyPath: "id" });
+    reminderLog.createIndex("dueAt", "dueAt");
+    reminderLog.createIndex("reminderId", "reminderId");
+
+    const outbox = db.createObjectStore(STORE_OUTBOX, { keyPath: "id" });
+    outbox.createIndex("queuedAt", "queuedAt");
+  }
 }
 
 function mapStorageError(error: unknown): unknown {

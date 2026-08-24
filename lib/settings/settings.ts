@@ -1,5 +1,6 @@
 export type SpeechRate = "slow" | "normal" | "fast";
 export type Sensitivity = "cautious" | "balanced" | "permissive";
+export type LocaleSetting = string;
 
 export interface AppSettings {
   recognitionEnabled: boolean;
@@ -11,6 +12,8 @@ export interface AppSettings {
   reduceMotion: boolean;
   sensitivity: Sensitivity;
   developerMode: boolean;
+  /** UI + voice language for games and reminders ("en" default). */
+  locale: LocaleSetting;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -23,6 +26,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   reduceMotion: false,
   sensitivity: "balanced",
   developerMode: false,
+  locale: "en",
 };
 
 const KEY = "ma.settings.v1";
@@ -44,6 +48,9 @@ function sanitize(input: unknown): AppSettings {
     merged.sensitivity = raw.sensitivity;
   }
   if (typeof raw.developerMode === "boolean") merged.developerMode = raw.developerMode;
+  if (typeof raw.locale === "string" && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(raw.locale)) {
+    merged.locale = raw.locale.slice(0, 10);
+  }
   return merged;
 }
 

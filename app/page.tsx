@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
+  Brain,
   Heart,
   Lock,
   ScanFace,
@@ -99,6 +100,10 @@ export default function LandingPage() {
             Caregiver Dashboard
             <ArrowRight className="h-5 w-5" aria-hidden />
           </ButtonLink>
+          <ButtonLink href="/play" variant="secondary" size="xl" className="min-w-[240px]">
+            <Brain className="h-5 w-5" aria-hidden />
+            Mind Games
+          </ButtonLink>
         </motion.div>
         <motion.p
           variants={heroItem}
@@ -111,6 +116,26 @@ export default function LandingPage() {
 
       {/* Feature cards */}
       <section aria-label="What makes MemoryAssist different" className="reveal-stagger grid gap-6 pb-16 md:grid-cols-3">
+        <SpotlightCard className="h-full rounded-3xl bg-surface border border-line shadow-soft p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift md:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+              <Brain className="h-6 w-6" aria-hidden />
+            </span>
+            <Link
+              href="/play"
+              className="rounded-full bg-accent px-6 py-2.5 text-base font-bold text-white shadow-soft transition-transform hover:scale-[1.02]"
+            >
+              Play today&apos;s session
+            </Link>
+          </div>
+          <h2 className="mt-5 text-2xl font-bold tracking-tight">Mind Games that adapt to you</h2>
+          <p className="mt-3 text-lg leading-relaxed text-ink-soft">
+            Six gentle exercises — family photos, market memory, morning
+            routines, patterns, attention and finding things — with difficulty
+            that tunes itself to each day&apos;s performance. Progress is
+            visible to caregivers, and reminders keep the whole day on track.
+          </p>
+        </SpotlightCard>
         <SpotlightCard className="h-full rounded-3xl bg-surface border border-line shadow-soft p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
           <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent">
             <Lock className="h-6 w-6" aria-hidden />
