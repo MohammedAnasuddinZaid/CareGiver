@@ -149,6 +149,105 @@ export function useRecognition({ active }: RecognitionArgs) {
       }
     };
 
+    /**
+     * Iron-Man-style HUD: a floating chip above EVERY recognized face in
+     * the frame — name on line one, relationship/description below. Runs
+     * per inference tick on the overlay canvas, so coordinates map 1:1 to
+     * the video regardless of screen size (canvas uses object-cover).
+     */
+    const drawFaceLabels = (
+      boxes: {
+        box: { x: number; y: number; width: number; height: number };
+        matched: boolean;
+        personId: string | null;
+      }[],
+    ) => {
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      if (!canvas || !video) return;
+      const vw = canvas.width;
+      const vh = canvas.height;
+      if (!vw || !vh) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const s = Math.max(15, Math.min(26, Math.round(vw / 46)));
+      const padX = Math.round(s * 0.6);
+      const padY = Math.round(s * 0.45);
+      const radius = Math.round(s * 0.55);
+      const lineGap = Math.round(s * 0.3);
+      const margin = 4;
+
+      for (const item of boxes) {
+        if (!item.matched || !item.personId) continue;
+        const p = peopleById.get(item.personId);
+        if (!p) continue;
+
+        // Compose label text.
+        const subParts: string[] = [];
+        if (p.relationship?.trim()) subParts.push(p.relationship.trim());
+        if (p.description?.trim()) subParts.push(p.description.trim());
+        let sub = subParts.join(" · ");
+        if (sub.length > 64) sub = `${sub.slice(0, 63).trimEnd()}…`;
+
+        // Measure both lines with their respective fonts.
+        ctx.textBaseline = "top";
+        ctx.font = `700 ${s}px Inter, system-ui, sans-serif`;
+        const nameW = ctx.measureText(p.name).width;
+        const nameH = Math.round(s * 1.1);
+        const subSize = Math.max(11, Math.round(s * 0.72));
+        const subH = sub ? Math.round(subSize * 1.15) : 0;
+        let subW = 0;
+        if (sub) {
+          ctx.font = `500 ${subSize}px Inter, system-ui, sans-serif`;
+          subW = ctx.measureText(sub).width;
+        }
+
+        const chipW = Math.ceil(Math.max(nameW, subW) + padX * 2);
+        const chipH = padY * 2 + nameH + (sub ? lineGap + subH : 0);
+
+        // Position: centered above the box, clamped into frame; drop below
+        // the box when there is no room at the top.
+        let cx = item.box.x + item.box.width / 2 - chipW / 2;
+        cx = Math.max(margin, Math.min(vw - chipW - margin, cx));
+        let cy =
+          item.box.y - chipH - Math.round(s * 0.4);
+        if (cy < margin) {
+          cy = item.box.y + item.box.height + Math.round(s * 0.4);
+        }
+        cy = Math.max(margin, Math.min(vh - chipH - margin, cy));
+
+        // Chip background + teal border.
+        ctx.beginPath();
+        if (typeof ctx.roundRect === "function") {
+          ctx.roundRect(cx, cy, chipW, chipH, radius);
+        } else {
+          const r = Math.min(radius, chipW / 2, chipH / 2);
+          ctx.moveTo(cx + r, cy);
+          ctx.arcTo(cx + chipW, cy, cx + chipW, cy + chipH, r);
+          ctx.arcTo(cx + chipW, cy + chipH, cx, cy + chipH, r);
+          ctx.arcTo(cx, cy + chipH, cx, cy, r);
+          ctx.arcTo(cx, cy, cx + chipW, cy, r);
+          ctx.closePath();
+        }
+        ctx.fillStyle = "rgba(7, 15, 20, 0.78)";
+        ctx.fill();
+        ctx.lineWidth = Math.max(1.5, s * 0.07);
+        ctx.strokeStyle = "rgba(94, 234, 212, 0.85)";
+        ctx.stroke();
+
+        // Text.
+        ctx.fillStyle = "rgba(255, 255, 255, 0.97)";
+        ctx.font = `700 ${s}px Inter, system-ui, sans-serif`;
+        ctx.fillText(p.name, cx + padX, cy + padY);
+        if (sub) {
+          ctx.fillStyle = "rgba(153, 246, 228, 0.92)";
+          ctx.font = `500 ${subSize}px Inter, system-ui, sans-serif`;
+          ctx.fillText(sub, cx + padX, cy + padY + nameH + lineGap);
+        }
+      }
+    };
+
     const tick = async () => {
       if (stopRef.current) return;
       // Period-based cadence: the sample interval covers the WHOLE cycle
@@ -233,6 +332,7 @@ export function useRecognition({ active }: RecognitionArgs) {
         descriptorMemoryRef.current.retain(tracked.map((t) => String(t.trackId)));
 
         drawTrackedBoxes(enriched);
+        drawFaceLabels(enriched);
 
         const now = performance.now();
         let nextKind: StableKind;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import { EXPORT_SCHEMA_VERSION, validateAndParseImport } from "@/lib/storage/data-transfer";
 
 const PHOTO = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
@@ -15,7 +15,7 @@ function validBundle(): Record<string, unknown> {
     profiles: [
       {
         id: "p1",
-        name: "Fatima",
+        name: "Sam",
         age: 52,
         relationship: "Mother",
         description: "She enjoys gardening.",
@@ -39,7 +39,7 @@ describe("backup import validation", () => {
     expect(result.skipped).toHaveLength(0);
     expect(result.profiles).toHaveLength(1);
     const p = result.profiles[0];
-    expect(p.name).toBe("Fatima");
+    expect(p.name).toBe("Sam");
     expect(p.descriptors[0]).toHaveLength(128);
     // photo ids are regenerated; arrays stay aligned
     expect(p.enrollmentPhotos).toHaveLength(1);
@@ -75,7 +75,7 @@ describe("backup import validation", () => {
     });
     (bundle.profiles as unknown[]).push({
       id: "bad2",
-      name: "Ahmed",
+      name: "Tom",
       age: 999,
       relationship: "Father",
       descriptors: [],
@@ -83,7 +83,7 @@ describe("backup import validation", () => {
       photos: {},
     });
     const result = validateAndParseImport(bundle);
-    expect(result.profiles.map((p) => p.name)).toEqual(["Fatima"]);
+    expect(result.profiles.map((p) => p.name)).toEqual(["Sam"]);
     expect(result.skipped.length).toBeGreaterThanOrEqual(2);
   });
 

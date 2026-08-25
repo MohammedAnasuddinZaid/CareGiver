@@ -1,4 +1,4 @@
-import { createPerson } from "@/lib/storage/profiles";
+﻿import { createPerson } from "@/lib/storage/profiles";
 
 export interface DemoSeed {
   name: string;
@@ -9,19 +9,19 @@ export interface DemoSeed {
 
 export const DEMO_PEOPLE: DemoSeed[] = [
   {
-    name: "Fatima",
+    name: "Sam",
     relationship: "Mother",
     age: 52,
     description: "Your mother. She enjoys gardening.",
   },
   {
-    name: "Ahmed",
+    name: "Tom",
     relationship: "Father",
     age: 57,
     description: "Your father. He likes reading the newspaper.",
   },
   {
-    name: "Sara",
+    name: "Emma",
     relationship: "Sister",
     age: 24,
     description: "Your sister. She calls every Sunday evening.",

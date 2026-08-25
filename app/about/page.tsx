@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -131,10 +131,10 @@ export default function AboutPage() {
         <Card className="border-dashed p-7 md:p-9">
           <h2 className="text-2xl font-bold tracking-tight">60-second demo flow</h2>
           <ol className="mt-5 list-decimal space-y-2 pl-6 text-lg text-ink-soft">
-            <li>Add “Fatima” in the dashboard with one clear photo.</li>
+            <li>Add “Sam” in the dashboard with one clear photo.</li>
             <li>Watch the face profile build locally — no upload spinner anywhere.</li>
             <li>Open Companion Mode and allow the camera.</li>
-            <li>Fatima walks in → name appears after a few calm frames.</li>
+            <li>Sam walks in → name appears after a few calm frames.</li>
             <li>A stranger appears → “I don’t recognize this person yet.”</li>
             <li>Turn off Wi-Fi — everything still works.</li>
             <li>Privacy Center shows where every byte lives.</li>

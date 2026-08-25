@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   identifyFace,
   identifyFaceDetailed,
@@ -109,11 +109,11 @@ describe("open-set identification — safety layers", () => {
     const far = atDistance(momBase, 0.7, 307);
     const near = atDistance(dadBase, 0.15, 308);
     const result = identifyFace(atDistance(dadBase, 0.12, 309), [
-      { id: "fatima", descriptors: [far] },
-      { id: "ahmed", descriptors: [near] },
+      { id: "Sam", descriptors: [far] },
+      { id: "Tom", descriptors: [near] },
     ], THRESHOLD);
     expect(result.status).toBe("recognized");
-    expect(result.personId).toBe("ahmed");
+    expect(result.personId).toBe("Tom");
   });
 
   it("corrupted descriptors are ignored instead of crashing", () => {

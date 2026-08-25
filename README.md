@@ -1,4 +1,4 @@
-# MemoryAssist
+﻿# MemoryAssist
 
 **Helping familiar faces stay familiar.**
 
@@ -36,7 +36,7 @@ how it's displayed.
 | Companion mode | Full-screen camera experience, large identity card, relationship + description |
 | Honest recognition | Unknown people stay unknown — nearest-neighbor never wins by default |
 | Stability | Temporal smoothing + majority voting so identities don't flicker |
-| Voice guidance | Browser-native speech announces *"Fatima. Your Mother."* with cooldowns |
+| Voice guidance | Browser-native speech announces *"Sam. Your Mother."* with cooldowns |
 | Accessibility | Large text, high contrast, reduced motion, keyboard navigable, screen-reader friendly |
 | Privacy center | Live facts about what is stored where; delete-all with confirmation |
 | Data portability | Export/import a validated JSON backup (contains sensitive data — keep private) |
@@ -234,9 +234,9 @@ Run with `npm test`.
 
 1. Open the site → short onboarding, privacy-first messaging.
 2. Caregiver Dashboard → *Add first person* (or *Load demo people*).
-3. Wizard: name “Fatima”, relationship Mother → upload a clear photo **or take one with the camera right there** → watch *“Face found”* appear locally.
+3. Wizard: name “Sam”, relationship Mother → upload a clear photo **or take one with the camera right there** → watch *“Face found”* appear locally.
 4. Finish → profile shows *Recognition ready* with the stored face count.
-5. Open **Companion Mode** → allow camera → Fatima walks in → after a few calm frames: big name + relationship, optional spoken announcement.
+5. Open **Companion Mode** → allow camera → Sam walks in → after a few calm frames: big name + relationship, optional spoken announcement.
 6. Bring in someone else → *"I don't recognize this person yet."*
 7. Turn off Wi-Fi → everything still works (recognition is local).
 8. Privacy Center → shows exactly what's stored and offers full deletion.

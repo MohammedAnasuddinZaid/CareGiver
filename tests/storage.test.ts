@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+﻿import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearAllData,
   createPerson,
@@ -24,7 +24,7 @@ beforeEach(async () => {
 describe("local profile service (IndexedDB)", () => {
   it("creates and retrieves people", async () => {
     const created = await createPerson({
-      name: "Fatima",
+      name: "Sam",
       relationship: "Mother",
       description: "She enjoys gardening.",
       enrollmentPhotos: [],
@@ -32,13 +32,13 @@ describe("local profile service (IndexedDB)", () => {
     });
     const all = await getPeople();
     expect(all).toHaveLength(1);
-    expect(all[0].name).toBe("Fatima");
+    expect(all[0].name).toBe("Sam");
     expect((await getPerson(created.id))?.id).toBe(created.id);
   });
 
   it("updates profiles without losing data", async () => {
     const created = await createPerson({
-      name: "Ahmed",
+      name: "Tom",
       relationship: "Father",
       enrollmentPhotos: [],
       descriptors: [],
@@ -47,13 +47,13 @@ describe("local profile service (IndexedDB)", () => {
     const updated = await getPerson(created.id);
     expect(updated).toBeDefined();
     expect(updated?.age).toBe(57);
-    expect(updated?.name).toBe("Ahmed");
+    expect(updated?.name).toBe("Tom");
     expect(updated!.updatedAt >= created.createdAt).toBe(true);
   });
 
   it("stores photo blobs locally", async () => {
     const person = await createPerson({
-      name: "Sara",
+      name: "Emma",
       relationship: "Sister",
       enrollmentPhotos: [],
       descriptors: [],

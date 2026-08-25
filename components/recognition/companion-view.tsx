@@ -122,7 +122,11 @@ export function CompanionView() {
           muted
           autoPlay
         />
-        <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
+        {/* object-cover on BOTH layers guarantees box coordinates map 1:1
+            even when the stage's aspect ratio differs from the camera's —
+            without it, portrait screens stretched the overlay and misaligned
+            every bracket and label. */}
+        <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
 
         {/* Scanning sweep while identifying */}
         {cameraStatus === "ready" && modelStatus === "ready" && stableKind === "identifying" && (

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
@@ -193,7 +193,7 @@ export default function AddPersonPage() {
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Fatima"
+                  placeholder="Sam"
                   maxLength={80}
                   autoComplete="off"
                 />

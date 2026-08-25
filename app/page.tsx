@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -195,7 +195,7 @@ export default function LandingPage() {
               </span>
               <h3 className="mt-3 text-2xl font-bold">Companion Mode</h3>
               <div className="mt-5 rounded-2xl bg-white/10 p-5 backdrop-blur">
-                <p className="identity-name font-bold leading-tight">Fatima</p>
+                <p className="identity-name font-bold leading-tight">Sam</p>
                 <p className="identity-relation mt-1 text-teal-300">Your Mother</p>
                 <p className="identity-description mt-3 text-white/80">She enjoys gardening.</p>
               </div>
