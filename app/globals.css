@@ -326,3 +326,57 @@ input[type="range"].ma-range::-moz-range-thumb {
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow: 0 8px 32px rgba(15, 118, 110, 0.08);
 }
+
+/* ---- Landing polish ---- */
+
+/* Headline: soft mint-to-white metallic gradient text */
+.text-hero-gradient {
+  background: linear-gradient(
+    100deg,
+    #ffffff 0%,
+    #ccfbf1 38%,
+    #5eead4 68%,
+    #f0fdfa 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Primary CTA: light sheen sweeping across on hover.
+   Disabled entirely under reduced motion by the global rule. */
+.btn-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.btn-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgb(255 255 255 / 0.35) 50%,
+    transparent 65%
+  );
+  transform: translateX(-130%);
+  transition: transform 0.7s ease;
+  pointer-events: none;
+}
+.btn-sheen:hover::after {
+  transform: translateX(130%);
+}
+
+/* Card top hairline glow */
+.card-hairline::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(94 234 212 / 0.55),
+    transparent
+  );
+}

@@ -16,6 +16,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { MemoryScene } from "@/components/landing/memory-scene";
 
 const ONBOARDING_KEY = "ma.onboarded.v1";
 
@@ -72,8 +73,11 @@ export default function LandingPage() {
             <div className="absolute right-[8%] top-[42%] h-[22rem] w-[22rem] rounded-full bg-emerald-300/20 blur-[120px]" />
             <div className="absolute bottom-[8%] left-[36%] h-[20rem] w-[30rem] rounded-full bg-amber-200/15 blur-[130px]" />
           </div>
+          {/* WebGL memory constellation — lazy three.js chunk, static under
+              reduced motion, silent fallback to this gradient if no WebGL */}
+          <MemoryScene />
           {/* Handloom-inspired weave over the gradient */}
-          <div className="woven-motif absolute inset-0 opacity-40" />
+          <div className="woven-motif absolute inset-0 opacity-30" />
           <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-canvas to-transparent" />
         </div>
 
@@ -98,7 +102,7 @@ export default function LandingPage() {
           {/* Headline */}
           <motion.h1
             variants={heroItem}
-            className="mb-6 max-w-3xl text-balance text-5xl font-extrabold leading-[1.05] tracking-tight text-surface-container-lowest drop-shadow-md md:text-7xl"
+            className="text-hero-gradient mb-6 max-w-3xl text-balance text-5xl font-extrabold leading-[1.05] tracking-tight drop-shadow-md md:text-7xl"
           >
             Helping familiar faces stay&nbsp;familiar.
           </motion.h1>
@@ -117,7 +121,7 @@ export default function LandingPage() {
           <motion.div variants={heroItem} className="flex w-full flex-col gap-4 sm:w-auto sm:flex-row">
             <Link
               href="/recognition"
-              className="flex min-h-[52px] items-center justify-center gap-2.5 rounded-full bg-primary-container px-8 py-3.5 text-button-text font-bold text-on-primary brightness-110 shadow-lift transition-all duration-300 hover:scale-[1.02] hover:bg-primary hover:shadow-[0_0_24px_rgba(16,185,129,0.35)]"
+              className="btn-sheen flex min-h-[52px] items-center justify-center gap-2.5 rounded-full bg-primary-container px-8 py-3.5 text-button-text font-bold text-on-primary brightness-110 shadow-lift transition-all duration-300 hover:scale-[1.02] hover:bg-primary hover:shadow-[0_0_24px_rgba(16,185,129,0.35)]"
             >
               <Eye className="h-5 w-5" aria-hidden />
               Open Companion Mode
@@ -355,7 +359,7 @@ function FeatureCard({
     </>
   );
   const cls =
-    "glass-panel group relative flex h-full flex-col gap-3 overflow-hidden rounded-3xl border border-line/70 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-accent hover:shadow-[0_0_24px_rgba(16,185,129,0.18)]";
+    "card-hairline glass-panel group relative flex h-full flex-col gap-3 overflow-hidden rounded-3xl border border-line/70 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-accent hover:shadow-[0_0_24px_rgba(16,185,129,0.18)]";
   return href ? (
     <Link href={href} className={cls}>
       {inner}

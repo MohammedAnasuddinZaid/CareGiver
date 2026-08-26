@@ -176,7 +176,9 @@ export async function getAllAssets(): Promise<StoredAsset[]> {
   return dbGetAll<StoredAsset>(STORE_ASSETS);
 }
 
-/** Removes a specific enrollment photo + its descriptor + its stored blob. */
+/** Removes a specific enrollment photo + its descriptor + its stored blob.
+ *  Asset deletion and profile update commit in ONE transaction so a crash
+ *  halfway can never leave a profile pointing at a deleted blob. */
 export async function removeEnrollmentPhoto(personId: string, photoId: string): Promise<PersonProfile> {
   const person = await getPerson(personId);
   if (!person) throw new Error("Person not found");
@@ -186,8 +188,12 @@ export async function removeEnrollmentPhoto(personId: string, photoId: string): 
   const descriptors = person.descriptors.slice();
   enrollmentPhotos.splice(index, 1);
   if (index < descriptors.length) descriptors.splice(index, 1);
-  await deleteAsset(photoId);
-  return updatePerson(personId, { enrollmentPhotos, descriptors });
+  const next: PersonProfile = { ...person, enrollmentPhotos, descriptors, updatedAt: nowISO() };
+  await dbTransactionalWrite([
+    { store: STORE_ASSETS, type: "delete", key: photoId },
+    { store: STORE_PROFILES, type: "put", value: next },
+  ]);
+  return next;
 }
 
 /**
