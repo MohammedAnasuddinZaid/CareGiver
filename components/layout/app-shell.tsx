@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Wordmark } from "@/components/logo";
 import { ReminderAlertOverlay } from "@/components/reminders/reminder-alert-overlay";
+import { SiteFooter } from "@/components/layout/site-footer";
 
 const NAV = [
   { href: "/", label: "Home", icon: House },
@@ -116,16 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <ReminderAlertOverlay />
 
-      <footer className="hidden border-t border-line/70 py-8 md:block">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-6 text-center">
-          <p className="text-base text-ink-soft">
-            MemoryAssist is a prototype assistive technology and is not a medical device.
-          </p>
-          <p className="text-sm text-ink-soft/80">
-            Designed with privacy first — profiles and recognition stay on this device.
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
 
       {/* Mobile bottom navigation */}
       <nav
