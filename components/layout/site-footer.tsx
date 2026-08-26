@@ -59,6 +59,11 @@ export function SiteFooter() {
                 </Link>
               </li>
               <li>
+                <Link href="/references" className="transition-colors hover:text-primary">
+                  References & Science
+                </Link>
+              </li>
+              <li>
                 <Link href="/analytics" className="transition-colors hover:text-primary">
                   Progress
                 </Link>

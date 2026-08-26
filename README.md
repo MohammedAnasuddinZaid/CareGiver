@@ -264,6 +264,38 @@ It makes no medical claims and does not replace human care.
 - Optional encrypted backups, retention limits controlled by caregivers
 - On-device quality hints during enrollment ("hold steady", "more light")
 
+## References & Academic Evidence
+
+MemoryAssist and Mind Games draw upon peer-reviewed clinical research and computer vision literature:
+
+1. **Cognitive Stimulation Therapy (CST) & NICE Guidelines**
+   - Spector, A., et al. (2003). *Cognitive stimulation therapy (CST): effects on cognition, quality of life and subjective wellbeing in dementia*. British Journal of Psychiatry, 183(3), 248–254.
+   - National Institute for Health and Care Excellence (NICE, 2018/2024). *Dementia: assessment, management and support (NICE guideline NG97)*.
+
+2. **Spaced Retrieval Training (SR)**
+   - Camp, C. J. (1989). *Facilitating memory: A cognitive-behavior approach*. In *The spectrum of aging* (pp. 212–225).
+   - Brush, K. E., & Camp, C. J. (1998). *Using spaced retrieval as an intervention across settings*. Clinical Gerontologist, 19(1), 51–59.
+   - Haslam, C., et al. (2011). *Spaced retrieval training makes peer learning work in dementia*. Neuropsychological Rehabilitation, 21(5), 633–651.
+
+3. **Reminiscence Therapy & Life Review**
+   - Butler, R. N. (1963). *The life review: An interpretation of reminiscence in the aged*. Psychiatry, 26(1), 65–76.
+   - Woods, B., et al. (2018). *Reminiscence therapy for dementia*. Cochrane Database of Systematic Reviews, Issue 2. Art. No.: CD001120.
+
+4. **Errorless Learning**
+   - Wilson, B. A., et al. (1994). *Errorless learning in the rehabilitation of memory impaired people*. Neuropsychological Rehabilitation, 4(3), 307–326.
+   - Clare, L., & Wilson, B. A. (2004). *Coping with memory loss: A guide to rehabilitative approaches*. Psychology Press.
+
+5. **Adaptive Difficulty & Flow**
+   - Rasch, G. (1960). *Probabilistic models for some intelligence and attainment tests* (Item Response Theory).
+   - Csikszentmihalyi, M. (1990). *Flow: The Psychology of Optimal Experience*. Harper & Row.
+
+6. **On-Device Computer Vision & Face Recognition**
+   - Liu, W., et al. (2016). *SSD: Single Shot MultiBox Detector*. ECCV (TinyFaceDetector).
+   - Schroff, F., et al. (2015). *FaceNet: A unified embedding for face recognition and clustering*. IEEE CVPR (128-D descriptors).
+   - Casiez, G., et al. (2012). *1 € filter: a simple speed-based low-pass filter for noisy input in interactive systems*. CHI '12.
+
+Full academic details and summaries are available in-app at [/references](/references).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

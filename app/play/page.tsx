@@ -7,6 +7,7 @@ import { prescribeDailySession } from "@/lib/games/adaptation";
 import { gamesConfig } from "@/lib/games/config";
 import {
   GAME_META,
+  GAME_IDS,
   SKILL_DOMAINS,
   type GameId,
 } from "@/lib/games/types";
@@ -164,8 +165,8 @@ export default function PlayPage() {
         All games
       </h2>
       <p className="mb-6 text-base text-ink-soft">
-        Twelve gentle exercises across four skills. Badged games are in
-        today&apos;s plan.
+        {GAME_IDS.length} gentle exercises across {SKILL_DOMAINS.length} skills.
+        Badged games are in today&apos;s plan.
       </p>
 
       {GAME_CATEGORIES.map((category) => {
@@ -180,7 +181,7 @@ export default function PlayPage() {
               </h3>
               <p className="text-sm text-ink-soft">{category.blurb}</p>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="reveal-stagger grid grid-cols-2 gap-3 sm:grid-cols-3">
               {games.map((id) => (
                 <LibraryCard
                   key={id}
@@ -214,18 +215,18 @@ function LibraryCard({
     <Link
       href={GAME_ROUTES[gameId]}
       className={
-        "group relative flex flex-col gap-2 rounded-2xl border-2 bg-surface p-4 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-lift active:scale-[0.98] " +
+        "gradient-ring group relative flex flex-col gap-2 rounded-2xl border-2 bg-surface p-4 shadow-soft transition-all hover:-translate-y-1 hover:shadow-lift active:scale-[0.98] " +
         (planned ? "border-accent/70" : "border-line")
       }
     >
       {planned && (
-        <span className="absolute -top-2.5 right-3 rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white shadow-soft">
+        <span className="glow-pulse absolute -top-2.5 right-3 rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white shadow-soft">
           Today
         </span>
       )}
       <span
         className={
-          "flex h-11 w-11 items-center justify-center rounded-xl transition-colors " +
+          "flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 " +
           (planned ? "bg-accent text-white" : "bg-accent-soft text-accent")
         }
       >
@@ -254,10 +255,15 @@ function NextGameCard({
   return (
     <Link
       href={GAME_ROUTES[gameId]}
-      className="group mt-8 block overflow-hidden rounded-[2rem] border border-line bg-surface shadow-lift transition-transform active:scale-[0.99]"
+      className="btn-sheen group relative mt-8 block overflow-hidden rounded-[2rem] border border-accent/30 bg-surface shadow-lift transition-transform active:scale-[0.99]"
     >
-      <div className="flex items-center gap-5 p-6 md:p-7">
-        <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-accent text-white shadow-soft transition-transform group-hover:scale-105">
+      {/* Drifting aurora glow behind the card content */}
+      <div aria-hidden className="absolute inset-0 opacity-70">
+        <div className="aurora-blob aurora-blob-a -left-16 top-6 h-44 w-44 bg-accent/20" />
+        <div className="aurora-blob aurora-blob-b -right-10 bottom-0 h-40 w-40 bg-secondary-fixed/30" />
+      </div>
+      <div className="relative flex items-center gap-5 p-6 md:p-7">
+        <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-accent text-white shadow-soft transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
           <Icon className="h-10 w-10" />
         </span>
         <span className="min-w-0 flex-1">
@@ -272,7 +278,7 @@ function NextGameCard({
           </span>
         </span>
       </div>
-      <div className="bg-accent px-6 py-4 text-center text-lg font-bold text-white transition-colors group-hover:bg-accent-strong">
+      <div className="bg-accent relative px-6 py-4 text-center text-lg font-bold text-white transition-colors group-hover:bg-accent-strong">
         {t("startSession")}
       </div>
     </Link>

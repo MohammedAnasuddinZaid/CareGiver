@@ -17,8 +17,21 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { MemoryScene } from "@/components/landing/memory-scene";
+import { HeroVideo } from "@/components/landing/hero-video";
+import { ScienceSlides } from "@/components/landing/science-slides";
 
 const ONBOARDING_KEY = "ma.onboarded.v1";
+
+/** Marquee ticker: the cognitive domains every game trains. */
+const TICKER_ITEMS: { emoji: string; label: string }[] = [
+  { emoji: "🧠", label: "Remembering people & moments" },
+  { emoji: "📝", label: "Holding lists in mind" },
+  { emoji: "🎯", label: "Paying attention" },
+  { emoji: "🗺️", label: "Planning & ordering" },
+  { emoji: "🔍", label: "Finding what's placed" },
+  { emoji: "🎵", label: "Music & rhythm" },
+  { emoji: "💬", label: "Stories worth retelling" },
+];
 
 const heroStagger = {
   hidden: {},
@@ -66,19 +79,24 @@ export default function LandingPage() {
     <div className="overflow-x-hidden">
       {/* Hero Section */}
       <section className="relative flex min-h-[580px] items-center overflow-hidden md:min-h-[640px] lg:min-h-[82vh]">
-        {/* Layered CSS backdrop — Ken Burns drift, no image request */}
+        {/* Cinematic backdrop — ambient video at the base, then brand-tint
+            duotone, constellation, weave and scrims stacked above it so the
+            headline stays perfectly legible even if the video fails. */}
         <div aria-hidden className="absolute inset-0 z-0 overflow-hidden">
-          <div className="ken-burns absolute inset-[-6%] bg-[radial-gradient(120%_90%_at_15%_10%,#134e4a_0%,#0b3d3a_38%,#0a2e33_62%,#0c1a24_100%)]">
-            <div className="absolute left-[10%] top-[18%] h-[26rem] w-[26rem] rounded-full bg-teal-400/25 blur-[110px]" />
-            <div className="absolute right-[8%] top-[42%] h-[22rem] w-[22rem] rounded-full bg-emerald-300/20 blur-[120px]" />
-            <div className="absolute bottom-[8%] left-[36%] h-[20rem] w-[30rem] rounded-full bg-amber-200/15 blur-[130px]" />
+          <div className="ken-burns absolute inset-[-4%]">
+            <HeroVideo src="/hero-memory.mp4" />
           </div>
+          {/* Brand tint + legibility scrims */}
+          <div className="video-duotone absolute inset-0" />
+          <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_15%_10%,rgba(19,78,74,0.55)_0%,rgba(11,61,58,0.35)_38%,rgba(10,46,51,0.5)_62%,rgba(12,26,36,0.72)_100%)]" />
+          <div className="video-vignette absolute inset-0" />
+          <div className="film-grain absolute inset-0" />
           {/* WebGL memory constellation — lazy three.js chunk, static under
               reduced motion, silent fallback to this gradient if no WebGL */}
           <MemoryScene />
           {/* Handloom-inspired weave over the gradient */}
           <div className="woven-motif absolute inset-0 opacity-30" />
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-canvas to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-canvas via-canvas/70 to-transparent" />
         </div>
 
         {/* Hero Content */}
@@ -142,21 +160,58 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
+      {/* Domain ticker — endless marquee of what the games train */}
+      <div aria-hidden className="relative z-30 border-y border-line/60 bg-surface/70 py-3.5 backdrop-blur">
+        <div className="marquee">
+          <div className="marquee-track">
+            {[0, 1].map((copy) => (
+              <div key={copy} className="flex shrink-0 items-center gap-12">
+                {TICKER_ITEMS.map((item) => (
+                  <span
+                    key={item.label}
+                    className="flex items-center gap-3 whitespace-nowrap text-base font-bold uppercase tracking-widest text-ink-soft"
+                  >
+                    <span className="text-xl">{item.emoji}</span>
+                    {item.label}
+                    <Sparkles className="h-4 w-4 text-accent/60" />
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Feature Grid */}
-      <section aria-label="Features" className="relative z-30 mx-auto -mt-12 max-w-7xl px-4 pb-16 md:-mt-16 md:px-6 md:pb-24">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="Features" className="relative z-30 mx-auto max-w-7xl px-4 py-16 md:px-6 md:py-24">
+        <motion.div
+          initial={{ opacity: 0, y: 28 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4"
+        >
           {FEATURE_CARDS.map((card) => (
             <FeatureCard key={card.title} {...card} />
           ))}
-        </div>
+        </motion.div>
       </section>
+
+      {/* Research slides — evidence behind every game */}
+      <ScienceSlides />
 
       {/* How it works */}
       <section
         aria-label="How MemoryAssist works"
         className="mx-auto max-w-7xl px-4 pb-20 md:px-6"
       >
-        <div className="glass-panel rounded-[2.5rem] p-8 shadow-soft md:p-14">
+        <motion.div
+          initial={{ opacity: 0, y: 32 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+          className="glass-panel rounded-[2.5rem] p-8 shadow-soft md:p-14"
+        >
             <h2 className="text-center text-3xl font-bold tracking-tight text-on-surface md:text-4xl">
               Two gentle modes
             </h2>
@@ -217,7 +272,7 @@ export default function LandingPage() {
                 </Link>
               </div>
             </div>
-          </div>
+          </motion.div>
         </section>
 
       {/* Onboarding Modal — first-run welcome */}
@@ -311,8 +366,7 @@ const FEATURE_CARDS: {
   tint: string;
   title: string;
   body: string;
-}[] = [
-  {
+}[] = [  {
     href: "/play",
     icon: Gamepad2,
     tint: "bg-primary-container text-on-primary-container",

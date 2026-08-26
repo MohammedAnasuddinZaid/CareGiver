@@ -20,14 +20,18 @@ export type SkillDomain = (typeof SKILL_DOMAINS)[number];
 
 export const GAME_IDS = [
   "faces",
+  "names",
+  "memorylane",
   "market",
   "routine",
   "loom",
   "drums",
+  "soundmatch",
   "spatial",
   "pairs",
   "bazaar",
   "oddone",
+  "sortit",
   "stroop",
   "trail",
   "melody",
@@ -47,15 +51,41 @@ export interface GameMeta {
 
 export const GAME_META: Record<GameId, GameMeta> = {
   faces: { id: "faces", domain: "memory", secondaryDomains: [], category: "remember" },
+  // Evidence-based additions (see each component's header for citations):
+  names: {
+    id: "names",
+    domain: "memory",
+    secondaryDomains: ["executive"],
+    category: "remember",
+  },
+  // Reminiscence therapy (Butler 1963; Woods et al., Cochrane 2018):
+  memorylane: {
+    id: "memorylane",
+    domain: "memory",
+    secondaryDomains: ["executive"],
+    category: "remember",
+  },
   market: { id: "market", domain: "working", secondaryDomains: ["memory"], category: "remember" },
   pairs: { id: "pairs", domain: "working", secondaryDomains: [], category: "remember" },
   melody: { id: "melody", domain: "working", secondaryDomains: ["memory"], category: "remember" },
   drums: { id: "drums", domain: "attention", secondaryDomains: [], category: "focus" },
+  soundmatch: {
+    id: "soundmatch",
+    domain: "attention",
+    secondaryDomains: ["memory"],
+    category: "focus",
+  },
   stroop: { id: "stroop", domain: "attention", secondaryDomains: ["executive"], category: "focus" },
   trail: { id: "trail", domain: "attention", secondaryDomains: ["executive"], category: "focus" },
   routine: { id: "routine", domain: "executive", secondaryDomains: ["memory"], category: "think" },
   loom: { id: "loom", domain: "executive", secondaryDomains: ["attention"], category: "think" },
   oddone: { id: "oddone", domain: "executive", secondaryDomains: ["attention"], category: "think" },
+  sortit: {
+    id: "sortit",
+    domain: "executive",
+    secondaryDomains: ["memory"],
+    category: "think",
+  },
   bazaar: { id: "bazaar", domain: "executive", secondaryDomains: ["working"], category: "think" },
   spatial: { id: "spatial", domain: "spatial", secondaryDomains: ["memory"], category: "find" },
 };

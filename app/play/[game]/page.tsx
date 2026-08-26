@@ -12,28 +12,36 @@ import {
   SummaryView,
 } from "@/components/games/game-shell";
 import { FacesGame } from "@/components/games/faces-game";
+import { NamesGame } from "@/components/games/names-game";
+import { MemoryLaneGame } from "@/components/games/memorylane-game";
 import { MarketGame } from "@/components/games/market-game";
 import { RoutineGame } from "@/components/games/routine-game";
 import { LoomGame } from "@/components/games/loom-game";
 import { DrumsGame } from "@/components/games/drums-game";
+import { SoundMatchGame } from "@/components/games/soundmatch-game";
 import { SpatialGame } from "@/components/games/spatial-game";
 import { PairsGame } from "@/components/games/pairs-game";
 import { BazaarGame } from "@/components/games/bazaar-game";
 import { OddOneGame } from "@/components/games/oddone-game";
+import { SortItGame } from "@/components/games/sortit-game";
 import { StroopGame } from "@/components/games/stroop-game";
 import { TrailGame } from "@/components/games/trail-game";
 import { MelodyGame } from "@/components/games/melody-game";
 
 const INSTRUCTIONS: Record<GameId, string> = {
   faces: "Look at the photo — who is this person?",
+  names: "Remember each face and name — they will ask you after a while.",
+  memorylane: "Travel back in time — remember the old, happy days.",
   market: "First remember the basket. Then find every item on the shelf.",
   routine: "Tap the cards in the order they happen in your morning.",
   loom: "The strip follows a pattern. Choose what comes next.",
   drums: "Tap when you hear the drum 🥁 — stay still for the horn 📣",
+  soundmatch: "Listen to the sound, then tap what made it.",
   spatial: "Watch where things are placed, then find the one asked for.",
   pairs: "Flip two cards at a time and find every matching pair.",
   bazaar: "Add the prices, then choose the correct change.",
   oddone: "One picture does not belong with the rest — tap it.",
+  sortit: "Send each item to its right basket.",
   stroop: "Tap the COLOR of the text, not what the word says.",
   trail: "Tap the numbers in order: 1, 2, 3…",
   melody: "Listen to the tune, then tap the same notes back.",
@@ -44,14 +52,18 @@ const GAME_COMPONENTS: Record<
   React.ComponentType<import("@/components/games/faces-game").GameStageProps>
 > = {
   faces: FacesGame,
+  names: NamesGame,
+  memorylane: MemoryLaneGame,
   market: MarketGame,
   routine: RoutineGame,
   loom: LoomGame,
   drums: DrumsGame,
+  soundmatch: SoundMatchGame,
   spatial: SpatialGame,
   pairs: PairsGame,
   bazaar: BazaarGame,
   oddone: OddOneGame,
+  sortit: SortItGame,
   stroop: StroopGame,
   trail: TrailGame,
   melody: MelodyGame,
@@ -59,15 +71,19 @@ const GAME_COMPONENTS: Record<
 
 const TITLES: Record<GameId, string> = {
   faces: "Who Is In The Photo?",
+  names: "Remembering Names",
+  memorylane: "Memory Lane",
   market: "Market Basket",
   pairs: "Card Pairs",
   melody: "Repeat the Tune",
   drums: "Festival Drums",
+  soundmatch: "Sound Match",
   stroop: "Color Trap",
   trail: "Number Trail",
   routine: "Morning Routine",
   loom: "Pattern Loom",
   oddone: "Odd One Out",
+  sortit: "Sorting Station",
   bazaar: "Bazaar Maths",
   spatial: "Where Did I Keep It?",
 };

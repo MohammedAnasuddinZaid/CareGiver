@@ -42,8 +42,9 @@ describe("daily session prescriber", () => {
       { domain: "spatial", theta: 1.2 },
     ];
     const p = prescribeDailySession(abilities, [], NOW);
-    // Festival Drums is the attention-primary game.
-    expect(p.games[0]).toBe("drums");
+    // The top pick must train the weakest domain (attention). Several
+    // attention-primary games exist, so assert the domain — not one title.
+    expect(GAME_META[p.games[0]].domain).toBe("attention");
   });
 
   it("is deterministic for identical inputs", () => {
@@ -66,9 +67,11 @@ describe("daily session prescriber", () => {
       startedAt: iso(25),
     }));
     const p = prescribeDailySession([], played, NOW);
-    // drums/spatial were never played → must be in today's plan.
-    expect(p.games).toContain("drums");
-    expect(p.games).toContain("spatial");
+    // Never-played games carry a 7-day recency bonus, so with a library
+    // this size today's plan should contain none of the stale titles.
+    for (const g of p.games) {
+      expect(played.map((x) => x.game)).not.toContain(g);
+    }
   });
 });
 

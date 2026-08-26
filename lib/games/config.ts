@@ -137,14 +137,18 @@ export function domainOfGame(game: GameId): SkillDomain {
 // Kept as a flat map for cheap lookups without importing the full meta.
 const GAME_META_DOMAIN: Record<GameId, SkillDomain> = {
   faces: "memory",
+  names: "memory",
+  memorylane: "memory",
   market: "working",
   pairs: "working",
   melody: "working",
   routine: "executive",
   loom: "executive",
   oddone: "executive",
+  sortit: "executive",
   bazaar: "executive",
   drums: "attention",
+  soundmatch: "attention",
   stroop: "attention",
   trail: "attention",
   spatial: "spatial",

@@ -32,9 +32,9 @@ export function GameChrome({
 }: GameChromeProps) {
   const { n } = useLocale();
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-3xl flex-col px-4 pb-16 pt-6 md:pt-10">
+    <div className="mx-auto flex min-h-[80vh] w-full max-w-3xl flex-col px-4 pb-16 pt-6 md:pt-10 slide-up-enter">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
+        <h1 className="text-shimmer text-2xl font-bold tracking-tight">{title}</h1>
         <button
           onClick={onQuit}
           aria-label="Leave game"
@@ -61,8 +61,12 @@ export function GameChrome({
           <span
             key={i}
             className={clsx(
-              "h-2 flex-1 rounded-full transition-colors",
-              i < current ? "bg-accent" : i === current ? "bg-accent/45" : "bg-line",
+              "h-2 flex-1 rounded-full transition-all duration-500",
+              i < current
+                ? "bg-accent shadow-[0_0_6px_rgb(var(--ma-accent)/0.5)]"
+                : i === current
+                  ? "animate-pulse-soft bg-accent/50"
+                  : "bg-line",
             )}
           />
         ))}
@@ -71,7 +75,10 @@ export function GameChrome({
         {n(Math.min(current + 1, total))} / {n(total)}
       </p>
 
-      <div className="mt-5 flex-1">{children}</div>
+      {/* Keyed on item index so EVERY game's next question slides in */}
+      <div key={current} className="slide-up-enter mt-5 flex-1">
+        {children}
+      </div>
     </div>
   );
 }
@@ -131,7 +138,7 @@ export function SummaryView({ summary }: SummaryViewProps) {
   const pct = Math.round(summary.accuracy * 100);
   return (
     <div className="mx-auto flex min-h-[80vh] w-full max-w-md flex-col items-center justify-center gap-6 px-6 text-center animate-fade-up">
-      <div className="flex h-24 w-24 items-center justify-center rounded-full bg-accent-soft">
+      <div className="ping-ring flex h-24 w-24 items-center justify-center rounded-full bg-accent-soft">
         <PartyPopper className="h-12 w-12 text-accent" />
       </div>
       <h1 className="text-3xl font-bold text-ink">{t("sessionComplete")}</h1>

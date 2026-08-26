@@ -380,3 +380,148 @@ input[type="range"].ma-range::-moz-range-thumb {
     transparent
   );
 }
+
+/* ==========================================================================
+   Advanced effects v4 — cinematic hero, marquee, gradient rings, shimmer
+   ========================================================================== */
+
+/* Gentle levitation (game scene cards, hero ornaments) */
+@keyframes ma-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float {
+  animation: ma-float 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Endless marquee ticker — content is duplicated once inside .marquee-track;
+   translating -50% then looping reads as seamless. Pauses on hover. */
+.marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 12%,
+    #000 88%,
+    transparent
+  );
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+@keyframes ma-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 3rem;
+  padding-right: 3rem;
+  animation: ma-marquee 32s linear infinite;
+  will-change: transform;
+}
+.marquee:hover .marquee-track,
+.marquee:focus-within .marquee-track {
+  animation-play-state: paused;
+}
+
+/* Animated conic-gradient ring that traces a card's border on hover.
+   Uses @property for smooth angle interpolation where supported; older
+   browsers simply show a static gradient ring (graceful degradation). */
+@property --gb-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes gb-spin {
+  to { --gb-angle: 360deg; }
+}
+.gradient-ring {
+  position: relative;
+  isolation: isolate;
+}
+.gradient-ring::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--gb-angle),
+    rgb(var(--ma-accent) / 0.95),
+    rgb(var(--ma-accent-soft)),
+    rgb(var(--ma-accent) / 0.2),
+    rgb(var(--ma-accent-soft)),
+    rgb(var(--ma-accent) / 0.95)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: gb-spin 5s linear infinite;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+.gradient-ring:hover::before,
+.gradient-ring:focus-within::before {
+  opacity: 1;
+}
+
+/* Slow-drifting iridescent text for section headings */
+.text-shimmer {
+  background-image: linear-gradient(
+    110deg,
+    rgb(var(--ma-ink)) 38%,
+    rgb(var(--ma-accent-strong)) 50%,
+    rgb(var(--ma-ink)) 62%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ma-shimmer 6s linear infinite;
+}
+
+/* Soft expanding halo — "Today" badges, live dots */
+@keyframes ma-halo {
+  0% { box-shadow: 0 0 0 0 rgb(var(--ma-accent) / 0.5); }
+  70%, 100% { box-shadow: 0 0 0 10px rgb(var(--ma-accent) / 0); }
+}
+.glow-pulse {
+  animation: ma-halo 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Cinematic scrims layered over the hero video for text legibility */
+.video-duotone {
+  background: linear-gradient(
+    112deg,
+    rgba(6, 42, 38, 0.92) 0%,
+    rgba(7, 54, 49, 0.55) 46%,
+    rgba(9, 32, 38, 0.9) 100%
+  );
+  mix-blend-mode: multiply;
+}
+.video-vignette {
+  background: radial-gradient(
+    125% 95% at 50% 38%,
+    transparent 52%,
+    rgba(7, 24, 28, 0.62) 100%
+  );
+}
+.film-grain {
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* Slide-in helpers for page transitions */
+@keyframes ma-slide-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.slide-up-enter {
+  animation: ma-slide-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
