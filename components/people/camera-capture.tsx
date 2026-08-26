@@ -57,20 +57,37 @@ export function CameraCapture({
   }, []);
 
   const startCamera = useCallback(async () => {
-    const generation = ++generationRef.current;
     setStatus("starting");
     setFailure(null);
+    // Invalidate any PREVIOUS attempt FIRST, then claim THIS one. Capturing
+    // the generation before stopCamera() would self-cancel: stop bumps the
+    // counter, the post-await check would see a mismatch forever and the
+    // dialog stayed on "Preparing your camera…" indefinitely.
     stopCamera();
+    const generation = ++generationRef.current;
     const video = videoRef.current;
     if (!video || !navigator.mediaDevices?.getUserMedia) {
       setStatus("error");
       return;
     }
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false,
-      });
+      // Devices/permission prompts occasionally hang forever — race a
+      // watchdog so the user always lands on a recoverable error screen
+      // instead of an infinite spinner.
+      const stream = await Promise.race([
+        navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        }),
+        new Promise<never>((_, reject) => {
+          watchdog = setTimeout(
+            () => reject(new DOMException("Camera start timed out", "TimeoutError")),
+            15_000,
+          );
+        }),
+      ]);
+      clearTimeout(watchdog);
       if (generation !== generationRef.current) {
         for (const track of stream.getTracks()) track.stop();
         return;
@@ -87,6 +104,7 @@ export function CameraCapture({
       }
       setStatus("ready");
     } catch (error) {
+      clearTimeout(watchdog);
       if (generation !== generationRef.current) return;
       streamRef.current = null;
       const name = error instanceof DOMException ? error.name : "";
@@ -101,6 +119,12 @@ export function CameraCapture({
   useEffect(() => {
     if (!open) return;
     void startCamera();
+    // Warm the recognition models IN PARALLEL with the camera warm-up so
+    // the first Capture press analyzes instantly instead of waiting on a
+    // multi-MB download (single-flight loader — no double fetch).
+    void import("@/lib/recognition/model-manager").then((models) =>
+      models.ensureModelsLoaded().catch(() => undefined),
+    );
     return () => stopCamera();
   }, [open, startCamera, stopCamera]);
 
