@@ -52,7 +52,16 @@ function openDatabase(): Promise<IDBDatabase> {
       const versionEvent = event as IDBVersionChangeEvent;
       upgradeDatabase(request.result, request.transaction, versionEvent.oldVersion);
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      // Release our handle when another tab needs to upgrade the schema,
+      // otherwise future upgrades block forever in multi-tab use.
+      db.onversionchange = () => db.close();
+      // If this open already lost a race (promise rejected via onblocked/
+      // onerror), nobody owns the handle — close it instead of leaking.
+      void dbPromise?.then(undefined, () => db.close());
+      resolve(db);
+    };
     request.onerror = () => {
       dbPromise = null;
       reject(request.error ?? new Error("Could not open local database"));
@@ -207,13 +216,21 @@ export async function dbTransactionalWrite(
   });
 }
 
-/** Deletes every asset belonging to a person in one transaction. */
-export async function deleteAssetsForPerson(personId: string): Promise<void> {
+/**
+ * Deletes every asset belonging to a person in one transaction.
+ * With `alsoDeleteProfile`, the profile row goes in the SAME transaction
+ * so a person and their photos can never end up half-deleted.
+ */
+export async function deleteAssetsForPerson(
+  personId: string,
+  alsoDeleteProfile = false,
+): Promise<void> {
   const db = await openDatabase();
+  const stores = alsoDeleteProfile ? [STORE_ASSETS, STORE_PROFILES] : [STORE_ASSETS];
   await new Promise<void>((resolve, reject) => {
     let tx: IDBTransaction;
     try {
-      tx = db.transaction(STORE_ASSETS, "readwrite");
+      tx = db.transaction(stores, "readwrite");
     } catch (error) {
       reject(mapStorageError(error));
       return;
@@ -222,6 +239,9 @@ export async function deleteAssetsForPerson(personId: string): Promise<void> {
     tx.onabort = () => reject(mapStorageError(tx.error ?? new Error("Transaction aborted")));
     tx.onerror = () => reject(mapStorageError(tx.error ?? new Error("Transaction error")));
     try {
+      if (alsoDeleteProfile) {
+        tx.objectStore(STORE_PROFILES).delete(personId);
+      }
       const index = tx.objectStore(STORE_ASSETS).index("personId");
       const cursorRequest = index.openCursor(IDBKeyRange.only(personId));
       cursorRequest.onsuccess = () => {
@@ -235,6 +255,62 @@ export async function deleteAssetsForPerson(personId: string): Promise<void> {
         try {
           tx.abort();
         } catch {}
+      };
+    } catch (error) {
+      reject(mapStorageError(error));
+    }
+  });
+}
+
+/**
+ * Reads every record whose value for `indexName` falls inside `range`.
+ * Lets hot paths query (e.g. reminder events by `reminderId`) instead of
+ * scanning and filtering the whole store in JS.
+ */
+export async function dbGetAllByIndex<T>(
+  store: string,
+  indexName: string,
+  range: IDBValidKey | IDBKeyRange,
+): Promise<T[]> {
+  return (
+    (await withStore<T[]>(
+      store,
+      "readonly",
+      (s) => s.index(indexName).getAll(range) as IDBRequest<T[]>,
+    )) ?? []
+  );
+}
+
+/**
+ * Atomic "insert only if the key is new" — `add()` fails inside the same
+ * transaction that would have written it, so two tabs racing to log the
+ * same reminder event can never both win. Returns whether THIS call won.
+ */
+export async function dbPutIfAbsent<T>(store: string, value: T): Promise<boolean> {
+  if (typeof indexedDB === "undefined") return false;
+  const db = await openDatabase();
+  return new Promise<boolean>((resolve, reject) => {
+    let tx: IDBTransaction;
+    try {
+      tx = db.transaction(store, "readwrite");
+    } catch (error) {
+      reject(mapStorageError(error));
+      return;
+    }
+    let added = false;
+    tx.oncomplete = () => resolve(added);
+    tx.onabort = () => reject(mapStorageError(tx.error ?? new Error("Transaction aborted")));
+    tx.onerror = () => reject(mapStorageError(tx.error ?? new Error("Transaction error")));
+    try {
+      const request = tx.objectStore(store).add(value as never);
+      request.onsuccess = () => {
+        added = true;
+      };
+      // Key already exists → expected outcome, not an error. Swallow it so
+      // the transaction still completes cleanly with added === false.
+      request.onerror = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
       };
     } catch (error) {
       reject(mapStorageError(error));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { mulberry32, shuffle } from "@/lib/games/rng";
 import type { GameStageProps } from "./faces-game";
@@ -56,12 +56,21 @@ export function TrailGame({
   const mistakesRef = useRef(0);
   const doneRef = useRef(false);
 
+  const timersRef = useRef<number[]>([]);
+  const later = useCallback((fn: () => void, ms: number): void => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+
   useEffect(() => {
     setNextExpected(1);
     setWrongAt(null);
     mistakesRef.current = 0;
     doneRef.current = false;
     startTrial(`trail:${itemKey}`);
+    return () => {
+      for (const t of timersRef.current) window.clearTimeout(t);
+      timersRef.current = [];
+    };
   }, [itemKey, startTrial]);
 
   const tap = (n: number): void => {
@@ -71,7 +80,7 @@ export function TrailGame({
       setNextExpected(nowNext);
       if (nowNext > count) {
         doneRef.current = true;
-        window.setTimeout(
+        later(
           () =>
             completeTrial({
               correct: mistakesRef.current === 0,
@@ -83,7 +92,7 @@ export function TrailGame({
     } else {
       mistakesRef.current += 1;
       setWrongAt(n);
-      window.setTimeout(() => setWrongAt(null), 500);
+      later(() => setWrongAt(null), 500);
     }
   };
 

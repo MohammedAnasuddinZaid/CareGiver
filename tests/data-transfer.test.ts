@@ -96,6 +96,40 @@ describe("backup import validation", () => {
     expect(result.profiles[0].enrollmentPhotos).toHaveLength(1);
   });
 
+  it("a corrupt FIRST descriptor never shifts later descriptors onto the wrong photos", () => {
+    const bundle = validBundle();
+    // photo ph1 ↔ descriptor(1) [corrupt], photo ph2 ↔ descriptor(2) [good].
+    const profile = firstProfile(bundle);
+    profile.descriptors = [
+      Array.from({ length: 128 }, (_, i) => NaN), // corrupt slot 0
+      descriptor(2), // belongs to ph2
+    ];
+    profile.enrollmentPhotos = [
+      { id: "ph1", addedAt: "x" },
+      { id: "ph2", addedAt: "y" },
+    ];
+    const result = validateAndParseImport(bundle);
+    const p = result.profiles[0];
+    expect(p.enrollmentPhotos).toHaveLength(0); // ph1 dropped WITH its bad vector
+    expect(p.descriptors).toEqual([]); // alignment preserved — nothing mispaired
+  });
+
+  it("keeps the surviving pair when only the first descriptor is valid but its photo is missing", () => {
+    const bundle = validBundle();
+    const profile = firstProfile(bundle);
+    profile.descriptors = [descriptor(1)];
+    profile.enrollmentPhotos = [{ id: "ph-missing-image", addedAt: "x" }];
+    delete (profile.photos as Record<string, unknown>)["ph-missing-image"];
+    (profile.photos as Record<string, unknown>).ph9 = PHOTO;
+    (profile.enrollmentPhotos as unknown[]).push({ id: "ph9", addedAt: "z" });
+    (profile.descriptors as number[][]).push(descriptor(9));
+    // Order: [ph-missing-image ↔ d1], [ph9 ↔ d9] — pairwise walking keeps
+    // d9 attached to ph9 even though the first pair fails decode.
+    const result = validateAndParseImport(bundle);
+    expect(result.profiles[0].descriptors).toHaveLength(1);
+    expect(result.profiles[0].descriptors[0][0]).toBeCloseTo(descriptor(9)[0], 12);
+  });
+
   it("restores a profile without recognition when photos are absent", () => {
     const bundle = validBundle();
     delete (firstProfile(bundle).photos as Record<string, unknown>).ph1;

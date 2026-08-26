@@ -54,6 +54,15 @@ export function MelodyGame({
 
   useEffect(() => () => clearTimers(), [clearTimers]);
 
+  // Release the audio device when the game unmounts entirely.
+  useEffect(
+    () => () => {
+      void audioRef.current?.close().catch(() => undefined);
+      audioRef.current = null;
+    },
+    [],
+  );
+
   useEffect(() => {
     setPhase("ready");
     setInputIdx(0);
@@ -113,16 +122,18 @@ export function MelodyGame({
     (correct: boolean): void => {
       if (doneRef.current) return;
       doneRef.current = true;
-      window.setTimeout(() => completeTrial({ correct }), 600);
+      timersRef.current.push(window.setTimeout(() => completeTrial({ correct }), 600));
     },
     [completeTrial],
   );
 
   const tapPad = (padIndex: number): void => {
-    if (phase !== "repeat" || doneRef.current) return;
+    // Locked out during the wrong-flash pause: stray taps would otherwise
+    // desync inputIdx against the sequence about to be replayed.
+    if (phase !== "repeat" || wrongFlash || doneRef.current) return;
     playTone(padIndex, 220);
     setLitPad(padIndex);
-    window.setTimeout(() => setLitPad(null), 180);
+    timersRef.current.push(window.setTimeout(() => setLitPad(null), 180));
 
     if (sequenceRef.current[inputIdx] === padIndex) {
       const next = inputIdx + 1;
@@ -133,10 +144,12 @@ export function MelodyGame({
       if (!wrongFlash) {
         setWrongFlash(true);
         setInputIdx(0);
-        window.setTimeout(() => {
-          setWrongFlash(false);
-          beginPlayback();
-        }, 900);
+        timersRef.current.push(
+          window.setTimeout(() => {
+            setWrongFlash(false);
+            beginPlayback();
+          }, 900),
+        );
         return;
       }
       finish(false);
@@ -156,7 +169,7 @@ export function MelodyGame({
           <button
             key={pad.label}
             onClick={() => tapPad(i)}
-            disabled={phase !== "repeat"}
+            disabled={phase !== "repeat" || wrongFlash}
             aria-label={`Note ${pad.label}`}
             className={clsx(
               "flex aspect-[4/3] items-end justify-start rounded-3xl p-3 text-lg font-black text-white/95 shadow-lift transition-all duration-100 active:scale-[0.96]",

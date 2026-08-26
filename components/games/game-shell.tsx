@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import clsx from "clsx";
 import { Home, PartyPopper, X } from "lucide-react";
 import { useLocale } from "@/hooks/use-locale";
@@ -116,7 +116,7 @@ export function FeedbackFlash({ kind }: { kind: "correct" | "wrong" | null }) {
         kind === "correct" ? "bg-ok/95 text-white" : "bg-warn/95 text-white",
       )}
     >
-      {kind === "correct" ? "✓" : "•"}
+      {kind === "correct" ? "✓ Well done!" : "✗ Try again"}
     </div>
   );
 }
@@ -179,20 +179,63 @@ export function QuitDialog({
   onLeave: () => void;
 }) {
   const { t } = useLocale();
-  const [visible, setVisible] = useState(open);
-  useEffect(() => setVisible(open), [open]);
-  if (!visible) return null;
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // True modal behavior: move focus in, cycle Tab inside, restore on
+  // close — keyboard/Switch-access players must never tab into the game
+  // behind this dialog.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const panel = panelRef.current;
+    panel?.querySelector<HTMLElement>("button")?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onStay();
+        return;
+      }
+      if (e.key === "Tab" && panel) {
+        const focusables = Array.from(
+          panel.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter((el) => !el.hasAttribute("disabled"));
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      previous?.focus?.();
+    };
+  }, [open, onStay]);
+
+  if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 p-4 sm:items-center">
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
+        aria-label={t("quitConfirm")}
         className="w-full max-w-sm rounded-3xl border border-line bg-canvas p-6 shadow-lift animate-scale-in"
       >
         <p className="text-xl font-bold text-ink">{t("quitConfirm")}</p>
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button
             onClick={onStay}
+            autoFocus
             className="min-h-[52px] rounded-2xl bg-accent px-4 py-3 text-lg font-bold text-white transition-transform active:scale-[0.97]"
           >
             {t("stay")}

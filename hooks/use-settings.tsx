@@ -40,13 +40,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const update = useCallback((patch: Partial<AppSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      saveSettings(next);
-      applySettingsToDocument(next);
-      return next;
-    });
+    setSettings((prev) => ({ ...prev, ...patch }));
   }, []);
+
+  // Persist + apply OUTSIDE the state updater: updaters must stay pure
+  // (StrictMode runs them twice — double writes, double DOM mutations).
+  useEffect(() => {
+    if (!ready) return;
+    saveSettings(settings);
+    applySettingsToDocument(settings);
+  }, [settings, ready]);
 
   const value = useMemo(() => ({ settings, update, ready }), [settings, update, ready]);
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

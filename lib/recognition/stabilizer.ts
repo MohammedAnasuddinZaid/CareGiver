@@ -135,11 +135,14 @@ export class IdentityStabilizer {
   private decayedWeights(now: number): Map<string, number> {
     const out = new Map<string, number>();
     for (const [id, entry] of this.weights) {
-      if (now - entry.last > this.cfg.temporal.pruneAfterMs) {
+      const age = Math.max(0, now - entry.last);
+      if (age > this.cfg.temporal.pruneAfterMs) {
         this.weights.delete(id);
         continue;
       }
-      out.set(id, Math.max(0, entry.w));
+      // Report the DECAYED weight so diagnostics reflect reality; the raw
+      // accumulator otherwise showed stale magnitudes in snapshot().
+      out.set(id, entry.w * Math.exp(-age / this.cfg.temporal.tauMs));
     }
     return out;
   }
@@ -147,12 +150,17 @@ export class IdentityStabilizer {
   /** Applies exponential decay lazily and prunes stale entries. */
   private decayAll(now: number): void {
     for (const [id, entry] of this.weights) {
-      const age = now - entry.last;
+      // Negative age (clock skew / monotonic-clock reset) must not AMPLIFY
+      // evidence; treat out-of-order stamps as zero elapsed time.
+      const age = Math.max(0, now - entry.last);
       if (age > this.cfg.temporal.pruneAfterMs) {
         this.weights.delete(id);
         continue;
       }
-      entry.w = entry.w * Math.exp(-age / this.cfg.temporal.tauMs);
+      entry.w = Math.min(
+        this.cfg.temporal.maxWeight,
+        entry.w * Math.exp(-age / this.cfg.temporal.tauMs),
+      );
       entry.last = now;
     }
   }
@@ -161,9 +169,8 @@ export class IdentityStabilizer {
     if (!this.currentId) return 0;
     const entry = this.weights.get(this.currentId);
     if (!entry) return 0;
-    const age = now - entry.last;
-    if (age > this.cfg.temporal.pruneAfterMs) return 0;
+    const age = Math.min(Math.max(0, now - entry.last), this.cfg.temporal.pruneAfterMs);
     // Weight as of `now` without mutating (decay applied on observe()).
-    return entry.w * Math.exp(-Math.min(age, this.cfg.temporal.pruneAfterMs) / this.cfg.temporal.tauMs);
+    return entry.w * Math.exp(-age / this.cfg.temporal.tauMs);
   }
 }

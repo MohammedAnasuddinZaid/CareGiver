@@ -30,7 +30,6 @@ export default function PlayPage() {
   const [abilities, setAbilities] = useState<AbilityState[]>([]);
   const [sessions, setSessions] = useState<GameSession[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [queueIndex, setQueueIndex] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +52,20 @@ export default function PlayPage() {
     [abilities, sessions],
   );
 
+  // Progress comes from REAL sessions played since local midnight — never
+  // from click order, so tapping item 3 never checks off items 1–2 and a
+  // finished game can't appear as "up next" again.
+  const playedToday = useMemo(() => {
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const t0 = dayStart.getTime();
+    return new Set(
+      sessions
+        .filter((s) => Number.isFinite(Date.parse(s.startedAt)) && Date.parse(s.startedAt) >= t0)
+        .map((s) => s.game),
+    );
+  }, [sessions]);
+
   if (!loaded) {
     return (
       <div className="mx-auto max-w-3xl px-4 pt-10">
@@ -61,7 +74,7 @@ export default function PlayPage() {
     );
   }
 
-  const remaining = prescription.games.slice(queueIndex);
+  const remaining = prescription.games.filter((id) => !playedToday.has(id));
   const plannedSet = new Set(prescription.games);
 
   return (
@@ -79,70 +92,72 @@ export default function PlayPage() {
       </div>
 
       {/* ---- Today's plan ---- */}
-      {remaining.length === 0 ? (
-        <div className="mt-8 flex flex-col items-center gap-4 rounded-3xl border border-line bg-surface p-10 text-center shadow-soft">
+      {remaining.length === 0 && (
+        <div className="mt-8 flex flex-col items-center gap-4 rounded-3xl border border-line bg-surface p-8 text-center shadow-soft">
           <CheckCircle2 className="h-14 w-14 text-ok" />
           <h2 className="text-2xl font-bold text-ink">{t("sessionComplete")}</h2>
           <p className="max-w-sm text-base leading-relaxed text-ink-soft">
             Today&apos;s plan is complete. You can still play any game below —
             or come back tomorrow for a fresh plan.
           </p>
-          <button
-            onClick={() => setQueueIndex(0)}
-            className="mt-1 rounded-full border border-line px-6 py-3 font-semibold text-ink hover:bg-surface-muted"
-          >
-            Show today&apos;s plan again
-          </button>
         </div>
-      ) : (
+      )}
+
+      {remaining.length > 0 ? (
         <>
           {/* Next up — primary action */}
           <NextGameCard
             gameId={remaining[0]}
             reason={prescription.reasons[remaining[0]] ?? ""}
           />
-
-          <h2 className="mb-3 mt-8 text-lg font-bold uppercase tracking-wide text-ink-soft">
-            {t("todaysPlan")}
-          </h2>
-          <ol className="space-y-2.5">
-            {prescription.games.map((id, i) => {
-              const Icon = GAME_ICONS[id];
-              const meta = GAME_META[id];
-              const done = i < queueIndex;
-              return (
-                <li key={id}>
-                  <Link
-                    href={GAME_ROUTES[id]}
-                    onClick={(e) => {
-                      if (done) e.preventDefault();
-                      else setQueueIndex(i);
-                    }}
-                    className={
-                      "flex items-center gap-4 rounded-2xl border bg-surface p-4 transition-all hover:shadow-soft " +
-                      (done ? "border-line opacity-55" : "border-line")
-                    }
-                  >
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">
-                      <Icon className="h-6 w-6" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-lg font-bold text-ink">
-                        {GAME_TITLES[id]}
-                      </span>
-                      <span className="block text-sm text-ink-soft">
-                        {meta.domain} · ~{gamesConfig.sessions.itemsPerSession}{" "}
-                        items · {prescription.reasons[id]}
-                      </span>
-                    </span>
-                    {done && <CheckCircle2 className="h-6 w-6 shrink-0 text-ok" />}
-                  </Link>
-                </li>
-              );
-            })}
-          </ol>
         </>
-      )}
+      ) : null}
+
+      <h2 className="mb-3 mt-8 text-lg font-bold uppercase tracking-wide text-ink-soft">
+        {t("todaysPlan")}
+      </h2>
+      <ol className="space-y-2.5">
+        {prescription.games.map((id) => {
+          const Icon = GAME_ICONS[id];
+          const meta = GAME_META[id];
+          const done = playedToday.has(id);
+          return (
+            <li key={id}>
+              <Link
+                href={GAME_ROUTES[id]}
+                aria-label={
+                  done
+                    ? `${GAME_TITLES[id]} — completed today. Play again`
+                    : GAME_TITLES[id]
+                }
+                className={
+                  "flex items-center gap-4 rounded-2xl border bg-surface p-4 transition-all hover:shadow-soft " +
+                  (done ? "border-ok/50" : "border-line")
+                }
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">
+                  <Icon className="h-6 w-6" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-lg font-bold text-ink">
+                    {GAME_TITLES[id]}
+                  </span>
+                  <span className="block text-sm text-ink-soft">
+                    {meta.domain} · ~{gamesConfig.sessions.itemsPerSession}{" "}
+                    items · {prescription.reasons[id]}
+                  </span>
+                </span>
+                {done && (
+                  <>
+                    <CheckCircle2 className="h-6 w-6 shrink-0 text-ok" />
+                    <span className="sr-only">Completed today</span>
+                  </>
+                )}
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
 
       {/* ---- Full library by category ---- */}
       <h2 className="mb-1 mt-12 text-2xl font-bold tracking-tight text-ink">

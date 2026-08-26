@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   collectDueReminders,
-  markReminderDone as persistDone,
+  markReminderEventDone,
+  snoozeReminderEvent,
 } from "@/lib/storage/reminders";
 import type { Reminder } from "@/lib/games/types";
 import { useSettings } from "./use-settings";
 import { LOCALE_META } from "@/lib/i18n/locales";
 
 export interface ActiveAlert extends Reminder {
+  /** Stable id of the due-slot — keys voice cooldown + persistence. */
   dueKey: string;
 }
 
@@ -20,6 +22,11 @@ export interface ActiveAlert extends Reminder {
  * used docked/kiosk-style by caregivers), announces via voice + optional
  * Notification API, and requires an explicit "Done" so missed doses are
  * observable in analytics.
+ *
+ * Reliability model (medication-grade): the collector re-delivers any
+ * unresolved slot every tick and snoozes are PERSISTED to IndexedDB, so a
+ * reload or navigation can never permanently silence an unconfirmed alert;
+ * after the 2 h grace window the slot flips to "missed" for caregivers.
  */
 export function useReminderScheduler() {
   const { settings } = useSettings();
@@ -50,10 +57,10 @@ export function useReminderScheduler() {
         const due = await collectDueReminders();
         if (cancelled) return;
         setActive((prev) => {
-          if (prev) return prev; // one at a time; queue drains on resolve
+          if (prev && due.some((d) => d.eventId === prev.dueKey)) return prev;
           if (due.length === 0) return null;
-          const r = due[0];
-          return { ...r, dueKey: `${r.id}:${r.time}` };
+          const { reminder, eventId } = due[0];
+          return { ...reminder, dueKey: eventId };
         });
       } catch {
         // Storage hiccup — retry next tick.
@@ -67,7 +74,7 @@ export function useReminderScheduler() {
     };
   }, []);
 
-  // Voice announcement with per-reminder cooldown.
+  // Voice announcement with per-slot cooldown.
   useEffect(() => {
     if (!active || !settings.voiceEnabled) return;
     const now = Date.now();
@@ -113,22 +120,16 @@ export function useReminderScheduler() {
 
   const markDone = useCallback(async (): Promise<void> => {
     if (!active) return;
-    await persistDone(active.id);
+    await markReminderEventDone(active.dueKey);
     setActive(null);
   }, [active]);
 
-  const snooze = useCallback((): void => {
+  const snooze = useCallback(async (): Promise<void> => {
     if (!active) return;
-    // Re-queue after 5 minutes without logging a "done".
-    const id = active.id;
+    // Persisted: the collector hides this slot until the deadline passes,
+    // even across reloads — no fragile in-page timers involved.
+    await snoozeReminderEvent(active.dueKey);
     setActive(null);
-    window.setTimeout(
-      () =>
-        setActive((prev) =>
-          prev ? prev : { ...active, dueKey: `${id}:snooze:${Date.now()}` },
-        ),
-      5 * 60_000,
-    );
   }, [active]);
 
   return { active, markDone, snooze, permission, requestPermission };

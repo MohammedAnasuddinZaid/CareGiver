@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { PhrasePlayer } from "@/lib/audio/phrase-player";
+import { useLocale } from "@/hooks/use-locale";
+import { useSettings } from "@/hooks/use-settings";
+import { LOCALE_META } from "@/lib/i18n/locales";
 import type { GameStageProps } from "./faces-game";
 import type { TrialOutcome } from "@/hooks/use-game-session";
 
@@ -54,6 +57,14 @@ export function DrumsGame({
   const [pulseNogo, setPulseNogo] = useState(false);
   const [progress, setProgress] = useState(0);
   const [feedback, setFeedback] = useState<"hit" | "error" | null>(null);
+  const { t } = useLocale();
+  const { settings } = useSettings();
+  const holdCueRef = useRef({ text: "Hold", lang: "en-IN" });
+  holdCueRef.current = {
+    text: t("drumsHoldCue"),
+    lang:
+      LOCALE_META[settings.locale as keyof typeof LOCALE_META]?.speechTag ?? "en-IN",
+  };
 
   const playerRef = useRef(new PhrasePlayer());
   const timersRef = useRef<number[]>([]);
@@ -82,12 +93,15 @@ export function DrumsGame({
     clearTimers();
     setRunning(false);
     const allowedErrors = [3, 2, 2, 1, 1][Math.min(level, 4)];
+    // Impulsive taps count as half errors internally; TrialRecord.hintsUsed
+    // must be an integer (the persistence sanitizer enforces it), so round
+    // only at this boundary.
     const outcome: TrialOutcome = {
       correct: errorsRef.current <= allowedErrors,
-      hintsUsed: Math.min(errorsRef.current, 9),
+      hintsUsed: Math.min(9, Math.round(errorsRef.current)),
     };
     playerRef.current.tone(outcome.correct ? "success" : "miss");
-    window.setTimeout(() => completeTrial(outcome), 600);
+    timersRef.current.push(window.setTimeout(() => completeTrial(outcome), 600));
   }, [clearTimers, completeTrial, level]);
 
   const scheduleBlock = useCallback((): void => {
@@ -102,11 +116,11 @@ export function DrumsGame({
           if (kind === "go") {
             playerRef.current.tone("tick", 0.28);
             setPulseGo(true);
-            window.setTimeout(() => setPulseGo(false), plan.windowMs);
+            timersRef.current.push(window.setTimeout(() => setPulseGo(false), plan.windowMs));
           } else {
-            playerRef.current.speak("hold", "en");
+            playerRef.current.speak(holdCueRef.current.text, holdCueRef.current.lang);
             setPulseNogo(true);
-            window.setTimeout(() => setPulseNogo(false), plan.windowMs);
+            timersRef.current.push(window.setTimeout(() => setPulseNogo(false), plan.windowMs));
           }
         }, t),
       );
@@ -119,7 +133,7 @@ export function DrumsGame({
           ) {
             errorsRef.current += 1;
             setFeedback("error");
-            window.setTimeout(() => setFeedback(null), 350);
+            timersRef.current.push(window.setTimeout(() => setFeedback(null), 350));
           }
           inWindowRef.current.kind = null;
           respondedRef.current = false;
@@ -146,16 +160,16 @@ export function DrumsGame({
       respondedRef.current = true;
       hitsRef.current += 1;
       setFeedback("hit");
-      window.setTimeout(() => setFeedback(null), 300);
+      timersRef.current.push(window.setTimeout(() => setFeedback(null), 300));
     } else if (kind !== null && !respondedRef.current) {
       respondedRef.current = true;
       errorsRef.current += 1;
       setFeedback("error");
-      window.setTimeout(() => setFeedback(null), 350);
+      timersRef.current.push(window.setTimeout(() => setFeedback(null), 350));
     } else if (kind === null) {
       errorsRef.current += 0.5; // impulsive tap outside any window
       setFeedback("error");
-      window.setTimeout(() => setFeedback(null), 350);
+      timersRef.current.push(window.setTimeout(() => setFeedback(null), 350));
     }
   };
 

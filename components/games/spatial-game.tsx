@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { mulberry32, randInt, shuffle } from "@/lib/games/rng";
 import type { GameStageProps } from "./faces-game";
@@ -45,6 +45,15 @@ export function SpatialGame({
   const mistakesRef = useRef(0);
   const finishedRef = useRef(false);
 
+  const timersRef = useRef<number[]>([]);
+  const later = useCallback((fn: () => void, ms: number): void => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+  const clearTimers = useCallback((): void => {
+    for (const t of timersRef.current) window.clearTimeout(t);
+    timersRef.current = [];
+  }, []);
+
   const item = useMemo(() => {
     const rand = mulberry32(itemKey * 6700417 + 29);
     const spots = shuffle(
@@ -68,15 +77,18 @@ export function SpatialGame({
     startTrial(`spatial:${itemKey}`);
     const holdMs = 2600 + hiddenCount * 1200 - level * 150;
     const timer = window.setTimeout(() => setPhase("recall"), Math.max(1800, holdMs));
-    return () => window.clearTimeout(timer);
-  }, [itemKey, hiddenCount, level, startTrial]);
+    return () => {
+      window.clearTimeout(timer);
+      clearTimers();
+    };
+  }, [itemKey, hiddenCount, level, startTrial, clearTimers]);
 
   const openSpot = (spot: number): void => {
     if (phase !== "recall" || finishedRef.current) return;
     if (spot === item.askSpot) {
       setOpenDrawer(spot);
       finishedRef.current = true;
-      window.setTimeout(
+      later(
         () =>
           completeTrial({
             correct: mistakesRef.current === 0,
@@ -90,7 +102,7 @@ export function SpatialGame({
       if (mistakesRef.current >= 3) {
         finishedRef.current = true;
         setOpenDrawer(item.askSpot); // errorless reveal
-        window.setTimeout(() => completeTrial({ correct: false, hintsUsed: 3 }), 1100);
+        later(() => completeTrial({ correct: false, hintsUsed: 3 }), 1100);
       }
     }
   };

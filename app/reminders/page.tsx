@@ -23,6 +23,9 @@ import { useLocale } from "@/hooks/use-locale";
 import {
   Modal,
 } from "@/components/ui/modal";
+import {
+  ReminderAlertOverlay,
+} from "@/components/reminders/reminder-alert-overlay";
 
 const KIND_ICON: Record<ReminderKind, React.ComponentType<{ className?: string }>> = {
   medicine: Pill,
@@ -43,6 +46,21 @@ export default function RemindersPage() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState<Partial<Reminder> | null>(null);
+  const [preview, setPreview] = useState<{ kind: ReminderKind; title: string } | null>(null);
+  const [permission, setPermission] = useState<NotificationPermission>("default");
+
+  useEffect(() => {
+    if (typeof Notification !== "undefined") setPermission(Notification.permission);
+  }, []);
+
+  const enableNotifications = useCallback(async (): Promise<void> => {
+    if (typeof Notification === "undefined") return;
+    try {
+      setPermission(await Notification.requestPermission());
+    } catch {
+      // Denied — in-app alerts still work.
+    }
+  }, []);
 
   const reload = useCallback(async (): Promise<void> => {
     setReminders(await getReminders());
@@ -115,8 +133,7 @@ export default function RemindersPage() {
           </p>
         </div>
       ) : (
-        <ul className="mt-6 space-y-2.5">
-          {reminders.map((r) => {
+        <ul className="mt-6 space-y-2.5">          {reminders.map((r) => {
             const Icon = KIND_ICON[r.kind];
             return (
               <li
@@ -160,6 +177,33 @@ export default function RemindersPage() {
         </ul>
       )}
 
+      {/* Setup confidence: show the real alert card without waiting. */}
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-line bg-surface-muted p-5">
+        <div>
+          <p className="text-base font-bold text-ink">Check how alerts appear</p>
+          <p className="text-sm text-ink-soft">
+            Preview the exact reminder your loved one will see — no waiting needed.
+          </p>
+        </div>
+        <button
+          onClick={() =>
+            setPreview({ kind: "medicine", title: "Blood pressure tablet" })
+          }
+          className="min-h-[48px] rounded-full border border-accent/50 bg-accent-soft px-5 py-2.5 text-base font-bold text-accent transition-colors hover:bg-accent hover:text-white"
+        >
+          Preview alert
+        </button>
+      </div>
+
+      {/* Rendered ONLY while previewing — the live alert already renders
+          once via the shared scheduler; a second instance would stack. */}
+      {preview && (
+        <ReminderAlertOverlay
+          preview={preview}
+          onPreviewDone={() => setPreview(null)}
+        />
+      )}
+
       {editing && (
         <ReminderEditor
           draft={editing}
@@ -169,6 +213,23 @@ export default function RemindersPage() {
             await reload();
           }}
         />
+      )}
+
+      {permission === "default" && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-line bg-surface p-5">
+          <div>
+            <p className="text-base font-bold text-ink">System notifications</p>
+            <p className="text-sm text-ink-soft">
+              Let the browser raise an alert even when this tab is in the background.
+            </p>
+          </div>
+          <button
+            onClick={() => void enableNotifications()}
+            className="min-h-[48px] rounded-full border border-line bg-surface px-5 py-2.5 text-base font-bold text-ink transition-colors hover:border-accent hover:text-accent"
+          >
+            Enable
+          </button>
+        </div>
       )}
     </div>
   );

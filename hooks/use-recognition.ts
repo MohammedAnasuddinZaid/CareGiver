@@ -12,7 +12,12 @@ import {
   onModelStatus,
   type ModelStatus,
 } from "@/lib/recognition/model-manager";
-import { identifyFaceDetailed, selectPrimaryFace } from "@/lib/recognition/matching";
+import {
+  buildProfileIndex,
+  identifyFaceIndexedDetailed,
+  selectPrimaryFace,
+} from "@/lib/recognition/matching";
+import { l2Normalize } from "@/lib/recognition/metrics";
 import { IdentityStabilizer } from "@/lib/recognition/stabilizer";
 import { BoxTracker } from "@/lib/recognition/tracker";
 import { DescriptorMemory } from "@/lib/recognition/descriptor-memory";
@@ -82,9 +87,21 @@ export function useRecognition({ active }: RecognitionArgs) {
 
   const threshold = thresholdFor(settings.sensitivity);
 
+  // Signature of the people list (id + updatedAt + descriptor count).
+  // Window-focus refreshes re-read IndexedDB, but the pipeline must only
+  // RESTART when data actually changed — otherwise every alt-tab reset
+  // stabilization, tracking and descriptor memory mid-recognition.
+  const peopleSignatureRef = useRef<string | null>(null);
+
   const refreshPeople = useCallback(async () => {
     try {
-      setPeople(await getPeople());
+      const list = await getPeople();
+      const signature = list
+        .map((p) => `${p.id}:${p.updatedAt}:${p.descriptors.length}`)
+        .join("|");
+      if (signature === peopleSignatureRef.current) return;
+      peopleSignatureRef.current = signature;
+      setPeople(list);
     } catch {
       // storage unavailable — companion still runs, everything reads unknown
     }
@@ -99,6 +116,9 @@ export function useRecognition({ active }: RecognitionArgs) {
   }, [refreshPeople]);
 
   const peopleById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
+  // Normalized-once descriptor index — rebuilt only when people change,
+  // turning per-frame matching into pure dot products.
+  const profileIndex = useMemo(() => buildProfileIndex(people), [people]);
 
   // Voice configuration follows settings live.
   useEffect(() => {
@@ -272,6 +292,10 @@ export function useRecognition({ active }: RecognitionArgs) {
 
         const t0 = performance.now();
         const faces = await detectFacesInVideo(faceapi, video, governorRef.current.inputSize);
+        // Inference can outlive an unmount (user left Companion Mode).
+        // Stop BEFORE touching React state or speaking — otherwise a name
+        // is announced into empty air and setState fires on dead components.
+        if (stopRef.current) return;
         const latency = performance.now() - t0;
         latencyEwmaRef.current =
           latencyEwmaRef.current === null
@@ -292,14 +316,17 @@ export function useRecognition({ active }: RecognitionArgs) {
         // below threshold, impostors stay near √2.
         const detectionForTrack = tracked.map((t) => {
           let bestIdx = -1;
-          let bestDist = Infinity;
+          let bestDist2 = Infinity;
+          const tcx = t.box.x + t.box.width / 2;
+          const tcy = t.box.y + t.box.height / 2;
           for (let i = 0; i < faces.length; i++) {
-            const d = Math.hypot(
-              t.box.x + t.box.width / 2 - (faces[i].box.x + faces[i].box.width / 2),
-              t.box.y + t.box.height / 2 - (faces[i].box.y + faces[i].box.height / 2),
-            );
-            if (d < bestDist) {
-              bestDist = d;
+            // Squared-distance compare: ordering identical to hypot,
+            // no sqrt per (track × detection) pair.
+            const dx = tcx - (faces[i].box.x + faces[i].box.width / 2);
+            const dy = tcy - (faces[i].box.y + faces[i].box.height / 2);
+            const d2 = dx * dx + dy * dy;
+            if (d2 < bestDist2) {
+              bestDist2 = d2;
               bestIdx = i;
             }
           }
@@ -309,14 +336,17 @@ export function useRecognition({ active }: RecognitionArgs) {
         const enriched = tracked.map((t, ti) => {
           const detIdx = detectionForTrack[ti];
           const face = detIdx >= 0 ? faces[detIdx] : null;
-          let match: ReturnType<typeof identifyFaceDetailed> | null = null;
+          let match: ReturnType<typeof identifyFaceIndexedDetailed> | null = null;
           if (face) {
             const smoothed = descriptorMemoryRef.current.update(
               String(t.trackId),
               face.descriptor,
               t0,
             );
-            if (smoothed) match = identifyFaceDetailed(smoothed, people, { threshold });
+            const normalized = smoothed ? l2Normalize(smoothed) : null;
+            if (normalized) {
+              match = identifyFaceIndexedDetailed(normalized, profileIndex, { threshold });
+            }
           }
           return {
             box: t.box,
@@ -391,6 +421,7 @@ export function useRecognition({ active }: RecognitionArgs) {
           samplesRef.current.push(ts);
           samplesRef.current = samplesRef.current.filter((t) => ts - t <= 4000);
           const g = governorRef.current.stats;
+          setFaceCount(faces.length);
           setDebug({
             latencyMs: Math.round(latencyEwmaRef.current ?? latency),
             samplesPerSecond: samplesRef.current.length / 4,
@@ -439,7 +470,7 @@ export function useRecognition({ active }: RecognitionArgs) {
       const canvas = canvasRef.current;
       canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     };
-  }, [active, cameraStatus, people, peopleById, threshold, settings.soundCues, settings.recognitionEnabled]);
+  }, [active, cameraStatus, people, peopleById, profileIndex, threshold, settings.soundCues, settings.recognitionEnabled]);
 
   const retryModels = useCallback(() => {
     setModelStatus(getModelStatus());

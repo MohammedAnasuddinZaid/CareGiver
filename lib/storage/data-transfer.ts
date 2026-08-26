@@ -110,15 +110,17 @@ export function validateAndParseImport(raw: unknown): ImportResult {
       result.skipped.push(`${label} (${name}): missing recognition data.`);
       return;
     }
-    // NB: wrapped in an arrow — passing isFiniteVector directly would leak
-    // the array index into its optional `length` argument.
-    const rawDescriptors = p.descriptors.filter((d) => isFiniteVector(d)).map((d) => d.slice());
+    // Descriptors and photo refs are PARALLEL arrays. Validate pairwise —
+    // pre-filtering one array would shift every later descriptor onto the
+    // wrong photo, silently mislabeling faces after a restore.
+    const rawDescriptors = p.descriptors as unknown[];
     const rawPhotoRefs = Array.isArray(p.enrollmentPhotos) ? p.enrollmentPhotos : [];
     if (rawPhotoRefs.length > 20) {
       result.skipped.push(`${label} (${name}): too many recognition photos.`);
       return;
     }
-    if (rawDescriptors.length === 0) {
+    const usablePairs = rawDescriptors.filter((d) => isFiniteVector(d)).length;
+    if (usablePairs === 0) {
       result.skipped.push(
         `${label} (${name}): no usable recognition data — restored without recognition.`,
       );
@@ -133,9 +135,12 @@ export function validateAndParseImport(raw: unknown): ImportResult {
     const enrollmentPhotos: EnrollmentPhoto[] = [];
     const descriptors: number[][] = [];
 
-    // Descriptors and photo refs are parallel arrays in exports.
     const count = Math.min(rawDescriptors.length, rawPhotoRefs.length);
     for (let i = 0; i < count; i++) {
+      // Skip an invalid descriptor together WITH its photo so index
+      // alignment survives (descriptors[i] must describe photos[i]).
+      const d = rawDescriptors[i];
+      if (!isFiniteVector(d)) continue;
       const ref = rawPhotoRefs[i] as Record<string, unknown> | null;
       const dataUrl = ref && typeof ref === "object" ? photosRecord[String(ref.id)] : undefined;
       if (!validDataUrl(dataUrl)) continue;
@@ -146,7 +151,7 @@ export function validateAndParseImport(raw: unknown): ImportResult {
           id: photoId,
           addedAt: asString((ref as Record<string, unknown>).addedAt) ?? new Date().toISOString(),
         });
-        descriptors.push(rawDescriptors[i]);
+        descriptors.push(d.slice());
         result.assets.push({ personId: id, assetId: photoId, role: "enrollment", blob });
       } catch {
         result.skipped.push(`${label} (${name}): a photo couldn’t be decoded.`);

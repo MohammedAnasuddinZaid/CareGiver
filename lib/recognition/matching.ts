@@ -23,6 +23,47 @@ export interface DetailedMatch {
 }
 
 /**
+ * Pre-normalized per-person descriptor index.
+ *
+ * Hot-path optimization: normalization is idempotent, yet the naive path
+ * re-normalized EVERY enrolled descriptor on EVERY frame (twice — once in
+ * l2Normalize, again inside cosineSimilarity). For P people × D photos at
+ * ~4 fps that is pure wasted math. The index normalizes once when the
+ * people list changes; identification then reduces to dot products.
+ */
+export interface ProfileIndex {
+  entries: { personId: string; vectors: number[][] }[];
+  size: number;
+}
+
+export function buildProfileIndex(profiles: ProfileLike[]): ProfileIndex {
+  const entries: ProfileIndex["entries"] = [];
+  let size = 0;
+  for (const profile of profiles) {
+    const vectors: number[][] = [];
+    for (const candidate of profile.descriptors ?? []) {
+      if (!isFiniteVector(candidate)) continue;
+      const normalized = l2Normalize(candidate);
+      if (normalized) {
+        vectors.push(normalized);
+        size++;
+      }
+    }
+    if (vectors.length > 0) entries.push({ personId: profile.id, vectors });
+  }
+  return { entries, size };
+}
+
+/** Squared distance from an ALREADY-normalized query to a unit vector:
+ *  ‖a−b‖² = 2 − 2·cosθ. Monotonic in the true distance, so comparisons
+ *  are exact while skipping every sqrt on the hot path. */
+function squaredUnitDistance(a: readonly number[], b: readonly number[]): number {
+  let dot = 0;
+  for (let i = 0; i < a.length; i++) dot += a[i] * b[i];
+  return Math.max(0, 2 - 2 * Math.min(1, Math.max(-1, dot)));
+}
+
+/**
  * Distance between a live descriptor and one profile.
  * A person may hold several enrollment descriptors — the minimum
  * (nearest angular neighbor) represents them, which keeps recognition
@@ -60,6 +101,19 @@ export function identifyFaceDetailed(
   profiles: ProfileLike[],
   options: MatchOptions,
 ): DetailedMatch {
+  return identifyFaceIndexedDetailed(l2Normalize(query), buildProfileIndex(profiles), options);
+}
+
+/**
+ * Indexed variant of {@link identifyFaceDetailed} for live loops.
+ * Accepts an optional pre-normalized query (null ⇒ unknown) and a cached
+ * {@link ProfileIndex}; mathematically identical, allocation-light.
+ */
+export function identifyFaceIndexedDetailed(
+  normalizedQuery: number[] | null,
+  index: ProfileIndex,
+  options: MatchOptions,
+): DetailedMatch {
   const {
     threshold,
     ambiguityMargin = recognitionConfig.matching.ambiguityMargin,
@@ -70,32 +124,43 @@ export function identifyFaceDetailed(
     confidenceSlope = recognitionConfig.matching.confidenceSlope,
   } = options;
 
-  if (profiles.length === 0 || !isFiniteVector(query)) {
+  if (index.entries.length === 0 || !normalizedQuery) {
     return {
       status: "unknown",
       personId: null,
       distance: null,
       confidence: 0,
       margin: null,
-      rejectedBy: profiles.length === 0 ? "no-profiles" : "threshold",
+      rejectedBy:
+        index.entries.length === 0 ? "no-profiles" : "threshold",
     };
   }
 
   let bestPersonId: string | null = null;
-  let bestDistance = Infinity;
-  let secondDistance = Infinity;
+  let bestD2 = Infinity;
+  let secondD2 = Infinity;
 
-  for (const profile of profiles) {
-    const { personId, distance } = compareDescriptorToProfile(query, profile);
-    if (!Number.isFinite(distance)) continue;
-    if (distance < bestDistance) {
-      secondDistance = bestDistance;
-      bestDistance = distance;
-      bestPersonId = personId;
-    } else if (distance < secondDistance) {
-      secondDistance = distance;
+  for (const entry of index.entries) {
+    let entryBestD2 = Infinity;
+    for (const vector of entry.vectors) {
+      // Squared metric for all comparisons — identical ordering to true
+      // distance, one sqrt saved per (query × descriptor) pair.
+      const d2 = squaredUnitDistance(normalizedQuery, vector);
+      if (d2 < entryBestD2) entryBestD2 = d2;
+    }
+    if (!Number.isFinite(entryBestD2)) continue;
+    if (entryBestD2 < bestD2) {
+      secondD2 = bestD2;
+      bestD2 = entryBestD2;
+      bestPersonId = entry.personId;
+    } else if (entryBestD2 < secondD2) {
+      secondD2 = entryBestD2;
     }
   }
+
+  // Project back to the threshold's distance scale — two sqrts per call.
+  const bestDistance = Math.sqrt(bestD2);
+  const secondDistance = Math.sqrt(secondD2);
 
   const base: DetailedMatch = {
     status: "unknown",

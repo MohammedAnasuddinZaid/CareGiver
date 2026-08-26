@@ -40,6 +40,10 @@ export function ServiceWorkerRegistration() {
     };
     if (document.readyState === "complete") register();
     else window.addEventListener("load", register, { once: true });
+
+    // Warm the recognition models while the user reads the landing page,
+    // so Companion Mode opens ready instead of downloading ~6.8 MB.
+    void import("@/lib/perf/prefetch").then((m) => m.scheduleModelPrefetch());
   }, []);
   return null;
 }

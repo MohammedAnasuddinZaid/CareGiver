@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { mulberry32, shuffle } from "@/lib/games/rng";
 import type { GameStageProps } from "./faces-game";
@@ -32,6 +32,40 @@ const CATEGORIES: readonly Category[] = [
   { id: "vehicle", members: ["🚌", "🚂", "✈️", "🛵", "🚲"], near: "household" },
   { id: "household", members: ["☕", "🪔", "🧺", "🕯️", "🔑"], near: "vehicle" },
 ];
+
+// Screen readers announce bare emoji inconsistently (or not at all) —
+// every cell gets a spoken name instead.
+const EMOJI_NAME: Record<string, string> = {
+  "🍎": "Apple",
+  "🍌": "Banana",
+  "🍇": "Grapes",
+  "🍊": "Orange",
+  "🥭": "Mango",
+  "🥔": "Potato",
+  "🥕": "Carrot",
+  "🥬": "Leafy greens",
+  "🌽": "Corn",
+  "🫑": "Capsicum",
+  "🐘": "Elephant",
+  "🐐": "Goat",
+  "🐔": "Hen",
+  "🐕": "Dog",
+  "🐈": "Cat",
+  "🦜": "Parrot",
+  "🦚": "Peacock",
+  "🦆": "Duck",
+  "🕊️": "Dove",
+  "🚌": "Bus",
+  "🚂": "Train",
+  "✈️": "Aeroplane",
+  "🛵": "Scooter",
+  "🚲": "Bicycle",
+  "☕": "Tea cup",
+  "🪔": "Lamp",
+  "🧺": "Basket",
+  "🕯️": "Candle",
+  "🔑": "Key",
+};
 
 function makeItem(seed: number, level: number): {
   cells: string[];
@@ -74,6 +108,18 @@ export function OddOneGame({
   const item = useMemo(() => makeItem(itemKey, level), [itemKey, level]);
   const [picked, setPicked] = useState<number | null>(null);
 
+  const timersRef = useRef<number[]>([]);
+  const later = useCallback((fn: () => void, ms: number): void => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+  useEffect(() => {
+    setPicked(null);
+    return () => {
+      for (const t of timersRef.current) window.clearTimeout(t);
+      timersRef.current = [];
+    };
+  }, [itemKey]);
+
   useEffect(() => {
     setPicked(null);
     startTrial(`oddone:${itemKey}`);
@@ -83,7 +129,7 @@ export function OddOneGame({
     if (picked !== null) return;
     setPicked(index);
     const outcome: TrialOutcome = { correct: index === item.oddIndex };
-    window.setTimeout(() => completeTrial(outcome), 650);
+    later(() => completeTrial(outcome), 650);
   };
 
   const cols = item.cells.length <= 4 ? 2 : item.cells.length <= 6 ? 3 : 3;
@@ -99,6 +145,7 @@ export function OddOneGame({
             key={i}
             onClick={() => pick(i)}
             disabled={picked !== null}
+            aria-label={EMOJI_NAME[emoji] ?? emoji}
             className={
               "flex aspect-square items-center justify-center rounded-3xl border-2 text-5xl shadow-soft transition-all active:scale-[0.95] disabled:opacity-70 " +
               (picked === i

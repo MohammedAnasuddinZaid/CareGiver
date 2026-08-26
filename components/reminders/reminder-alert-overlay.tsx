@@ -7,7 +7,7 @@ import {
   Sparkles,
   Stethoscope,
 } from "lucide-react";
-import { useReminderScheduler } from "@/hooks/use-reminder-scheduler";
+import { useReminderSchedulerOnce } from "@/components/reminders/reminder-scheduler-provider";
 import type { ReminderKind } from "@/lib/games/types";
 import { useLocale } from "@/hooks/use-locale";
 
@@ -22,12 +22,76 @@ const KIND_ICON: Record<ReminderKind, React.ComponentType<{ className?: string }
  * Full-width calm alert shown on any screen when a reminder comes due.
  * Requires explicit confirmation ("Done") so adherence is measurable;
  * snooze re-fires after five minutes without logging completion.
+ *
+ * A `preview` override renders the exact same card without touching the
+ * scheduler or log — caregivers can verify how an alert looks/feels at
+ * setup time instead of waiting for the real thing.
  */
-export function ReminderAlertOverlay() {
-  const { active, markDone, snooze } = useReminderScheduler();
+export interface ReminderPreview {
+  kind: ReminderKind;
+  title: string;
+  note?: string;
+}
+
+export function ReminderAlertOverlay({
+  preview = null,
+  onPreviewDone,
+}: {
+  preview?: ReminderPreview | null;
+  onPreviewDone?: () => void;
+} = {}) {
+  // Preview renders standalone and must NOT spin up (or depend on) the
+  // single shared scheduler instance.
+  if (preview) {
+    return (
+      <AlertCard
+        kind={preview.kind}
+        title={preview.title}
+        note={preview.note}
+        doneLabel={undefined}
+        onDone={onPreviewDone}
+      />
+    );
+  }
+  return <LiveOverlay />;
+}
+
+function LiveOverlay() {
+  const scheduler = useReminderSchedulerOnce();
+  const active = scheduler?.active ?? null;
+  if (!scheduler || !active) return null;
+  return (
+    <AlertCard
+      kind={active.kind}
+      title={active.title}
+      note={active.note}
+      onDone={() => void scheduler.markDone()}
+      snoozeLabel="5 min"
+      onSnooze={() => void scheduler.snooze()}
+    />
+  );
+}
+
+function AlertCard({
+  kind,
+  title,
+  note,
+  doneLabel,
+  onDone,
+  snoozeLabel,
+  onSnooze,
+}: {
+  kind: ReminderKind;
+  title: string;
+  note?: string;
+  /** Undefined ⇒ localized "✓ Done" default. */
+  doneLabel?: undefined;
+  onDone?: () => void;
+  snoozeLabel?: string;
+  onSnooze?: () => void;
+}) {
   const { t } = useLocale();
-  if (!active) return null;
-  const Icon = KIND_ICON[active.kind];
+  const Icon = KIND_ICON[kind];
 
   return (
     <div
@@ -37,14 +101,14 @@ export function ReminderAlertOverlay() {
       <div
         className={clsx(
           "rounded-3xl border-2 bg-canvas p-5 shadow-lift",
-          active.kind === "medicine" ? "border-danger/50" : "border-accent/60",
+          kind === "medicine" ? "border-danger/50" : "border-accent/60",
         )}
       >
         <div className="flex items-start gap-4">
           <span
             className={clsx(
               "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl",
-              active.kind === "medicine"
+              kind === "medicine"
                 ? "bg-danger/10 text-danger"
                 : "bg-accent-soft text-accent",
             )}
@@ -55,28 +119,34 @@ export function ReminderAlertOverlay() {
             <p className="text-xs font-bold uppercase tracking-widest text-accent">
               {t("dueNow")}
             </p>
-            <p className="mt-0.5 truncate text-xl font-extrabold text-ink">
-              {active.title}
+            {/* Never truncate: dosage details in the title/note are the
+                whole point of the alert. Two lines max for layout safety. */}
+            <p className="mt-0.5 line-clamp-2 text-xl font-extrabold leading-snug text-ink">
+              {title}
             </p>
-            {active.note && (
-              <p className="mt-0.5 truncate text-sm text-ink-soft">{active.note}</p>
+            {note && (
+              <p className="mt-1 whitespace-pre-line break-words text-sm leading-snug text-ink-soft">
+                {note}
+              </p>
             )}
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-[2fr_1fr] gap-2.5">
+        <div className={clsx("mt-4 grid gap-2.5", onSnooze ? "grid-cols-[2fr_1fr]" : "grid-cols-1")}>
           <button
-            onClick={() => void markDone()}
+            onClick={onDone}
             className="min-h-[52px] rounded-full bg-accent px-6 py-3 text-lg font-bold text-white shadow-soft transition-transform active:scale-[0.98]"
           >
-            ✓ {t("markDone")}
+            ✓ {doneLabel ?? t("markDone")}
           </button>
-          <button
-            onClick={snooze}
-            aria-label="Snooze five minutes"
-            className="min-h-[52px] rounded-full border border-line px-4 py-3 font-semibold text-ink hover:bg-surface-muted"
-          >
-            5 min
-          </button>
+          {onSnooze && (
+            <button
+              onClick={onSnooze}
+              aria-label={`Snooze five minutes — ${title}`}
+              className="min-h-[52px] rounded-full border border-line px-4 py-3 font-semibold text-ink hover:bg-surface-muted"
+            >
+              {snoozeLabel}
+            </button>
+          )}
         </div>
       </div>
     </div>

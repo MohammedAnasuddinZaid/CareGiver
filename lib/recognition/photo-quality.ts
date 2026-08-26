@@ -124,9 +124,17 @@ export function assessPhotoQuality(
     verdict = worstOf(verdict, "warn");
     warnings.push("The photo looks overexposed — softer light helps.");
   }
-  if (yaw !== null && Math.abs(yaw) >= cfg.quality.yawReject) {
-    verdict = worstOf(verdict, "warn");
-    warnings.push("The face is turned quite far to the side — a frontal photo works best.");
+  if (yaw !== null) {
+    const absYaw = Math.abs(yaw);
+    // A strongly turned face yields descriptors that poison matching for
+    // EVERYDAY frontal views — hard-reject; mild turns only warn.
+    if (absYaw >= cfg.quality.yawReject) {
+      verdict = worstOf(verdict, "reject");
+      warnings.push("The face is turned too far to the side — look straight at the camera.");
+    } else if (absYaw >= cfg.quality.yawWarn) {
+      verdict = worstOf(verdict, "warn");
+      warnings.push("The face is turned quite far to the side — a frontal photo works best.");
+    }
   }
 
   return { sharpness, brightness, yaw, verdict, warnings };

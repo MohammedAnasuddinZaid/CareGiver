@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UserRound } from "lucide-react";
 import { getPeople } from "@/lib/storage/profiles";
 import type { PersonProfile } from "@/lib/types/person";
 import { mulberry32, randInt, shuffle } from "@/lib/games/rng";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { PhrasePlayer } from "@/lib/audio/phrase-player";
+import { useSettings } from "@/hooks/use-settings";
 import type { TrialOutcome } from "@/hooks/use-game-session";
 
 export interface GameStageProps {
@@ -34,6 +35,18 @@ export function FacesGame({
   const [picked, setPicked] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
   const playerRef = useRefPhrasePlayer();
+  const { settings } = useSettings();
+
+  const timersRef = useRef<number[]>([]);
+  const later = useCallback((fn: () => void, ms: number): void => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+  // Unmount cancels the per-answer feedback timer so a mid-answer exit
+  // never records a trial for an item the player abandoned.
+  useEffect(() => () => {
+    for (const t of timersRef.current) window.clearTimeout(t);
+    timersRef.current = [];
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,13 +105,13 @@ export function FacesGame({
     if (correct) {
       playerRef.current.speak(
         `${item.target.name}. ${item.target.relationship}.`,
-        "en",
+        settings.locale,
       );
       playerRef.current.tone("success");
     } else {
       playerRef.current.tone("miss");
     }
-    window.setTimeout(() => completeTrial({ correct }), correct ? 900 : 1300);
+    later(() => completeTrial({ correct }), correct ? 900 : 1300);
   };
 
   return (

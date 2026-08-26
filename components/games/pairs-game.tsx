@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { mulberry32, shuffle } from "@/lib/games/rng";
 import type { GameStageProps } from "./faces-game";
@@ -39,6 +39,15 @@ export function PairsGame({
   const lockRef = useRef(false);
   const doneRef = useRef(false);
 
+  const timersRef = useRef<number[]>([]);
+  const later = useCallback((fn: () => void, ms: number): void => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+  const clearTimers = useCallback((): void => {
+    for (const t of timersRef.current) window.clearTimeout(t);
+    timersRef.current = [];
+  }, []);
+
   const dealt = useMemo(() => {
     const rand = mulberry32(itemKey * 2654435761 + 7);
     const faces = PAIR_FACES.slice(0, pairCount);
@@ -51,6 +60,8 @@ export function PairsGame({
     }));
   }, [itemKey, pairCount]);
 
+  // New board or unmount cancels pending resolve/finish timers so a
+  // mid-flip exit can never mutate state or record a ghost trial.
   useEffect(() => {
     setCards(dealt);
     setPickedKeys([]);
@@ -58,7 +69,10 @@ export function PairsGame({
     lockRef.current = false;
     doneRef.current = false;
     startTrial(`pairs:${itemKey}`);
-  }, [dealt, itemKey, startTrial]);
+    return clearTimers;
+  }, [dealt, itemKey, startTrial, clearTimers]);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
 
   const allowedMisses = [3, 4, 5, 5, 6][Math.min(level, 4)];
 
@@ -69,7 +83,7 @@ export function PairsGame({
       correct: mistakesRef.current <= allowedMisses,
       hintsUsed: Math.min(mistakesRef.current, 9),
     };
-    window.setTimeout(() => completeTrial(outcome), 700);
+    later(() => completeTrial(outcome), 700);
   };
 
   const flip = (key: number): void => {
@@ -89,31 +103,34 @@ export function PairsGame({
     if (nextCards[first].face === nextCards[second].face) {
       lockRef.current = true;
       playerRef.current.tone("tick");
-      window.setTimeout(() => {
-        setCards((prev) => {
-          const copy = prev.slice();
-          copy[first] = { ...copy[first], matched: true };
-          copy[second] = { ...copy[second], matched: true };
-          if (copy.every((c) => c.matched)) {
-            playerRef.current.tone("success");
-            window.setTimeout(finish, 350);
-          }
-          return copy;
-        });
+      // Board completes when this pair's two cards land on the only
+      // unmatched pair still showing. Computed OUTSIDE any state updater
+      // so side effects stay out of render-phase functions.
+      const completesBoard =
+        nextCards.filter((c) => c.matched).length + 2 === nextCards.length;
+      later(() => {
+        setCards((prev) =>
+          prev.map((c) =>
+            c.key === first || c.key === second ? { ...c, matched: true } : c,
+          ),
+        );
         setPickedKeys([]);
         lockRef.current = false;
+        if (completesBoard) {
+          playerRef.current.tone("success");
+          later(finish, 350);
+        }
       }, 450);
     } else {
       mistakesRef.current += 1;
       lockRef.current = true;
       playerRef.current.tone("miss");
-      window.setTimeout(() => {
-        setCards((prev) => {
-          const copy = prev.slice();
-          copy[first] = { ...copy[first], flipped: false };
-          copy[second] = { ...copy[second], flipped: false };
-          return copy;
-        });
+      later(() => {
+        setCards((prev) =>
+          prev.map((c) =>
+            c.key === first || c.key === second ? { ...c, flipped: false } : c,
+          ),
+        );
         setPickedKeys([]);
         lockRef.current = false;
       }, 750);

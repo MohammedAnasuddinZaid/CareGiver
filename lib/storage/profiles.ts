@@ -7,6 +7,7 @@ import {
   dbGet,
   dbGetAll,
   dbPut,
+  dbTransactionalWrite,
   deleteAssetsForPerson,
   STORE_ASSETS,
   STORE_PROFILES,
@@ -137,8 +138,9 @@ export async function updatePerson(
 }
 
 export async function deletePerson(id: string): Promise<void> {
-  await deleteAssetsForPerson(id);
-  await dbDelete(STORE_PROFILES, id);
+  // One transaction for assets + profile: a crash halfway must never
+  // leave a profile whose photos are gone (or orphaned blobs).
+  await deleteAssetsForPerson(id, true);
 }
 
 export async function clearAllData(): Promise<void> {
@@ -152,6 +154,14 @@ export async function countPeople(): Promise<number> {
 
 export async function putAsset(asset: StoredAsset): Promise<void> {
   await dbPut(STORE_ASSETS, asset);
+}
+
+/** Writes many assets in ONE all-or-nothing transaction. */
+export async function putAssetsBulk(assets: StoredAsset[]): Promise<void> {
+  if (assets.length === 0) return;
+  await dbTransactionalWrite(
+    assets.map((a) => ({ store: STORE_ASSETS, type: "put" as const, value: a })),
+  );
 }
 
 export async function getAsset(id: string): Promise<StoredAsset | undefined> {

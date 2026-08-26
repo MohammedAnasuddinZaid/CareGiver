@@ -139,4 +139,6 @@ export interface ReminderEvent {
   /** "fired" | "done" | "missed" */
   status: "fired" | "done" | "missed";
   resolvedAt?: string;
+  /** Persisted snooze deadline (ISO) — survives reloads, unlike timers. */
+  snoozedUntil?: string;
 }

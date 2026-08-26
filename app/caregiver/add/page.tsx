@@ -21,7 +21,7 @@ import { CameraCapture } from "@/components/people/camera-capture";
 import { Avatar } from "@/components/people/avatar";
 import { useToast } from "@/components/ui/toast";
 import { RELATIONSHIPS } from "@/lib/types/person";
-import { createPerson, putAsset } from "@/lib/storage/profiles";
+import { createPerson, putAssetsBulk } from "@/lib/storage/profiles";
 import { recognitionConfig } from "@/lib/recognition/config";
 
 type Step = 0 | 1 | 2 | 3 | 4;
@@ -76,15 +76,9 @@ export default function AddPersonPage() {
   async function handleSave() {
     setSaving(true);
     try {
-      for (const photo of photos) {
-        await putAsset({
-          id: photo.id,
-          personId: "", // patched below once the profile exists
-          role: "enrollment",
-          blob: photo.blob,
-          createdAt: new Date().toISOString(),
-        });
-      }
+      // Profile first, then ALL blobs in a single all-or-nothing write.
+      // (The old order stored orphan blobs with personId:"" and patched
+      // them in a loop — a crash mid-loop stranded photos with no owner.)
       const profile = await createPerson({
         name: name.trim(),
         age: age ? Number(age) : undefined,
@@ -94,16 +88,15 @@ export default function AddPersonPage() {
         descriptors: photos.map((p) => p.descriptor),
         photoThumb: photos[0]?.thumb,
       });
-      // Patch asset ownership now that we have the id.
-      for (const photo of photos) {
-        await putAsset({
-          id: photo.id,
+      await putAssetsBulk(
+        photos.map((p) => ({
+          id: p.id,
           personId: profile.id,
-          role: "enrollment",
-          blob: photo.blob,
+          role: "enrollment" as const,
+          blob: p.blob,
           createdAt: new Date().toISOString(),
-        });
-      }
+        })),
+      );
       setSavedId(profile.id);
       setStep(4);
       toast("Person added — stored locally.");

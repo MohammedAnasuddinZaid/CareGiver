@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { mulberry32, shuffle } from "@/lib/games/rng";
 import type { GameStageProps } from "./faces-game";
@@ -54,19 +54,31 @@ function makeProblem(seed: number, level: number): Problem {
   const paid = Math.max(note, Math.ceil(total / 10) * 10);
   const answer = paid - total;
 
+  // Exactly three unique non-negative distractors, always — thin candidate
+  // pools near small answers previously collapsed the board to 3 options.
+  // `total` is included as a "forgot to subtract" lure when it differs.
   const distractors = new Set<number>();
-  const candidates = [answer + 5, answer - 5, answer + 10, answer - 10, total, answer + 15];
-  for (const c of shuffle(candidates, rand)) {
-    if (c !== answer && c >= 0 && distractors.size < 3) distractors.add(c);
+  const candidates = shuffle(
+    [answer + 5, answer - 5, answer + 10, answer - 10, answer + 15, total],
+    rand,
+  );
+  for (const c of candidates) {
+    if (distractors.size >= 3) break;
+    if (c !== answer && c >= 0 && Number.isInteger(c)) distractors.add(c);
   }
-  while (distractors.size < 2) distractors.add(answer + (distractors.size + 2) * 5);
+  let bump = 20;
+  while (distractors.size < 3) {
+    const c = answer + bump;
+    if (c !== answer && !distractors.has(c)) distractors.add(c);
+    bump += 5;
+  }
 
   return {
     items,
     prices,
     paid,
     answer,
-    options: shuffle([answer, ...distractors], rand).slice(0, 4),
+    options: shuffle([answer, ...distractors], rand),
   };
 }
 
@@ -85,6 +97,15 @@ export function BazaarGame({
   const [picked, setPicked] = useState<number | null>(null);
   const [hintShown, setHintShown] = useState(false);
 
+  const timersRef = useRef<number[]>([]);
+  const later = useCallback((fn: () => void, ms: number): void => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+  const clearTimers = useCallback((): void => {
+    for (const t of timersRef.current) window.clearTimeout(t);
+    timersRef.current = [];
+  }, []);
+
   useEffect(() => {
     setPicked(null);
     setHintShown(false);
@@ -96,13 +117,21 @@ export function BazaarGame({
     }
   }, [itemKey, level, startTrial]);
 
+  useEffect(() => {
+    setPicked(null);
+    setHintShown(false);
+    return clearTimers;
+  }, [itemKey, clearTimers]);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
+
   const total = problem.prices.reduce((s, p) => s + p, 0);
 
   const pick = (value: number): void => {
     if (picked !== null) return;
     setPicked(value);
     const correct = value === problem.answer;
-    window.setTimeout(
+    later(
       () =>
         completeTrial({
           correct,

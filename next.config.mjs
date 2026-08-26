@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // Barrel-file tree shaking for the two icon/animation libraries.
+    // lucide-react alone ships 1400+ module re-exports; without this every
+    // page pays the parse cost of the full barrel on mid-range phones.
+    optimizePackageImports: ["lucide-react", "framer-motion"],
+  },
   webpack: (config) => {
     // face-api.js / tfjs reference node builtins behind runtime guards;
     // neutralize them for the browser bundle.

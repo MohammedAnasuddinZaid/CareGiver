@@ -83,10 +83,24 @@ export interface AdherenceSummary {
   lastSessionAt: string | null;
 }
 
+/** Local-calendar-day key ("YYYY-MM-DD") — `slice(0,10)` on ISO strings
+ * reads the UTC date, so sessions before e.g. 05:30 IST counted as the
+ * previous day and skewed "active days" for the exact audience (elderly,
+ * early risers) this metric exists for. */
+export function localDayKey(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
 export function adherence(sessions: GameSession[]): AdherenceSummary {
   const weekAgo = Date.now() - 7 * MS_PER_DAY;
   const recent = sessions.filter((s) => Date.parse(s.startedAt) >= weekAgo);
-  const days = new Set(recent.map((s) => s.startedAt.slice(0, 10)));
+  const days = new Set(
+    recent.map((s) => localDayKey(s.startedAt)).filter((k) => k !== ""),
+  );
 
   let abandonStreak = 0;
   for (let i = sessions.length - 1; i >= 0; i--) {

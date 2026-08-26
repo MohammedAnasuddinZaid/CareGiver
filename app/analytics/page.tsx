@@ -14,6 +14,7 @@ import {
 import { DOMAIN_INFO } from "@/lib/games/config";
 import { SKILL_DOMAINS } from "@/lib/games/types";
 import type { AbilityState } from "@/lib/games/types";
+import { thetaStandardError } from "@/lib/cognition/traits";
 import { getAbilities, getRecentSessions } from "@/lib/storage/progress";
 import { getRecentEvents } from "@/lib/storage/reminders";
 import {
@@ -35,11 +36,15 @@ export default function AnalyticsPage() {
   const [abilities, setAbilities] = useState<AbilityState[]>([]);
   const [trends, setTrends] = useState<DomainTrend[]>([]);
   const [alerts, setAlerts] = useState<CareAlert[]>([]);
+  /** Per-domain standard error of θ (Fisher information) — evidence bands. */
+  const [standardErrors, setStandardErrors] = useState<
+    Partial<Record<(typeof SKILL_DOMAINS)[number], number | null>>
+  >({});
   const [stats, setStats] = useState({ sessions: 0, activeDays: 0 });
   const [reminderStats, setReminderStats] = useState({
     fired: 0,
     done: 0,
-    missedStreakMax: 0,
+    missed: 0,
   });
   const [loaded, setLoaded] = useState(false);
 
@@ -56,13 +61,34 @@ export default function AnalyticsPage() {
       // Reminder compliance summary.
       let done = 0;
       let fired = 0;
+      let missed = 0;
       const perReminder = new Map<string, number>();
       for (const e of events) {
         if (e.status === "fired") {
           fired++;
           perReminder.set(e.reminderId, (perReminder.get(e.reminderId) ?? 0) + 1);
+        } else if (e.status === "done") done++;
+        else if (e.status === "missed") missed++;
+      }
+
+      // Fisher-information precision per domain from recent item history.
+      const difficultiesByDomain = new Map<string, number[]>();
+      for (const s of sessions) {
+        for (const trial of s.trials) {
+          if (!Number.isFinite(trial.difficulty)) continue;
+          const list = difficultiesByDomain.get(trial.domain) ?? [];
+          list.push(trial.difficulty);
+          difficultiesByDomain.set(trial.domain, list);
         }
-        if (e.status === "done") done++;
+      }
+      const ses: typeof standardErrors = {};
+      for (const d of SKILL_DOMAINS) {
+        const ability = a.find((x) => x.domain === d);
+        const diffs = difficultiesByDomain.get(d) ?? [];
+        ses[d] =
+          ability && diffs.length > 0
+            ? thetaStandardError(ability.theta, diffs)
+            : null;
       }
 
       if (!cancelled) {
@@ -73,11 +99,8 @@ export default function AnalyticsPage() {
           sessions: adherence(sessions).sessionsLast7Days,
           activeDays: adherence(sessions).activeDaysLast7Days,
         });
-        setReminderStats({
-          fired,
-          done,
-          missedStreakMax: Math.max(0, fired - done),
-        });
+        setStandardErrors(ses);
+        setReminderStats({ fired, done, missed });
         setLoaded(true);
       }
     })();
@@ -113,10 +136,12 @@ export default function AnalyticsPage() {
         <StatCard label={t("sessionsWeek")} value={n(stats.sessions)} />
         <StatCard label={t("activeDays")} value={`${n(stats.activeDays)}/7`} />
         <StatCard
-          label="Reminders done"
+          label="Reminders confirmed"
           value={
-            reminderStats.fired > 0
-              ? `${Math.round((reminderStats.done / reminderStats.fired) * 100)}%`
+            reminderStats.done + reminderStats.missed > 0
+              ? `${Math.round(
+                  (reminderStats.done / (reminderStats.done + reminderStats.missed)) * 100,
+                )}%`
               : "—"
           }
         />
@@ -173,6 +198,7 @@ export default function AnalyticsPage() {
               key={trend.domain}
               trend={trend}
               theta={abilities.find((a) => a.domain === trend.domain)?.theta}
+              standardError={standardErrors[trend.domain] ?? null}
               labels={{
                 improving: t("trendImproving"),
                 steady: t("trendSteady"),
@@ -213,10 +239,12 @@ function StatCard({ label, value }: { label: string; value: string }) {
 function TrendCard({
   trend,
   theta,
+  standardError,
   labels,
 }: {
   trend: DomainTrend;
   theta?: number;
+  standardError?: number | null;
   labels: { improving: string; steady: string; declining: string; noData: string };
 }) {
   const info = DOMAIN_INFO[trend.domain];
@@ -255,6 +283,9 @@ function TrendCard({
       {theta !== undefined ? (
         <p className="text-sm font-semibold tabular-nums text-ink-soft">
           Level {(theta + 1.2).toFixed(1)}
+          {standardError != null && Number.isFinite(standardError)
+            ? ` ± ${Math.min(9, standardError).toFixed(1)}`
+            : ""}
         </p>
       ) : (
         <p className="text-sm text-ink-soft">{labels.noData}</p>

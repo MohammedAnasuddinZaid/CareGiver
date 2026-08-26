@@ -75,5 +75,8 @@ export class DescriptorMemory {
 /** Fixed-point sanity helper exported for tests. */
 export function steadyStateWeight(confidence: number, cycleMs: number, tauMs: number): number {
   const k = Math.exp(-cycleMs / tauMs);
+  // cycleMs → 0 ⇒ k → 1 ⇒ geometric sum diverges; report the divergence
+  // instead of returning Infinity/NaN to callers.
+  if (k >= 1 - 1e-9) return Number.POSITIVE_INFINITY;
   return confidence / (1 - k);
 }

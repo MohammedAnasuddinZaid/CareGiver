@@ -95,16 +95,34 @@ describe("yaw proxy — head-turn estimation from landmarks", () => {
     expect(yawProxy(degenerate)).toBeNull();
   });
 
-  it("an extreme turn warns but only a rejected blur verdict blocks enrollment", () => {
+  it("an extreme turn rejects enrollment (near-profile photos poison matching)", () => {
     const turnedSharp = buffer(
       64,
       64,
       (x, y) => (((x * 7 + y * 13) % 16 < 8 ? [220, 220, 220] : [40, 40, 40]) as [number, number, number]),
     );
     const report = assessPhotoQuality(turnedSharp, { leftEyeOuter: { x: 100, y: 0 }, rightEyeOuter: { x: 200, y: 0 }, noseTip: { x: 60, y: 50 } }, cfg);
-    // Turned far to one side → warn present…
+    // Turned far to one side → reject verdict with an explanatory warning.
     expect(report.warnings.some((w) => /turned/i.test(w))).toBe(true);
-    // …but sharpness is good so enrollment may still proceed.
-    expect(["good", "warn"]).toContain(report.verdict);
+    expect(report.verdict).toBe("reject");
+  });
+
+  it("a mild turn only warns and still allows enrollment", () => {
+    const sharp = buffer(
+      64,
+      64,
+      (x, y) => (((x * 7 + y * 13) % 16 < 8 ? [220, 220, 220] : [40, 40, 40]) as [number, number, number]),
+    );
+    // Eyes at x=100/200 (span 100): nose at x=175 ⇒
+    // yaw = (175−100)/100 − 0.5 = +0.25 — inside [yawWarn, yawReject).
+    const mild = {
+      leftEyeOuter: { x: 100, y: 0 },
+      rightEyeOuter: { x: 200, y: 0 },
+      noseTip: { x: 175, y: 50 },
+    };
+    const report = assessPhotoQuality(sharp, mild, cfg);
+    expect(Math.abs(report.yaw!)).toBeGreaterThanOrEqual(cfg.quality.yawWarn);
+    expect(Math.abs(report.yaw!)).toBeLessThan(cfg.quality.yawReject);
+    expect(report.verdict).toBe("warn");
   });
 });

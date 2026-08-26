@@ -131,11 +131,16 @@ export class BoxTracker {
       if (now - track.lastTs > this.cfg.maxAgeMs) this.tracks.splice(ti, 1);
     }
 
-    return this.tracks.map((t) => ({
-      trackId: t.id,
-      box: t.box,
-      hits: t.hits,
-    }));
+    // Confirm-before-draw: single-frame detector false positives must not
+    // flash UI chrome. Newborn tracks stay internal until they accumulate
+    // minHitsBeforeDraw consecutive-ish observations.
+    return this.tracks
+      .filter((t) => t.hits >= this.cfg.minHitsBeforeDraw)
+      .map((t) => ({
+        trackId: t.id,
+        box: t.box,
+        hits: t.hits,
+      }));
   }
 
   /** Diagnostics helper. */

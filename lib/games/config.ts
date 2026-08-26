@@ -44,6 +44,12 @@ export const gamesConfig = {
     itemsPerSession: 10,
     /** Median-RT growth over baseline that triggers early, kind endings. */
     fatigueRtGrowth: 0.45,
+    /**
+     * Robust response-time scatter (MAD) growth over baseline that ALSO
+     * triggers a kind ending. Fatigue often appears as erratic timing
+     * before it slows overall speed — this catches it earlier.
+     */
+    fatigueScatterGrowth: 1.5,
     minimumItemsBeforeFatigueEnd: 4,
     /** Accuracy credit multiplier when hints were needed. */
     hintPenalty: 0.35,

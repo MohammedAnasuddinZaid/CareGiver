@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { mulberry32, randInt, shuffle } from "@/lib/games/rng";
 import type { GameStageProps } from "./faces-game";
@@ -75,6 +75,18 @@ export function LoomGame({
   const item = useMemo(() => generateItem(itemKey, level), [itemKey, level]);
   const [picked, setPicked] = useState<MotifId | null>(null);
 
+  const timersRef = useRef<number[]>([]);
+  const later = useCallback((fn: () => void, ms: number): void => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+  useEffect(() => {
+    setPicked(null);
+    return () => {
+      for (const t of timersRef.current) window.clearTimeout(t);
+      timersRef.current = [];
+    };
+  }, [itemKey]);
+
   useEffect(() => {
     setPicked(null);
     startTrial(`loom:${itemKey}`);
@@ -84,7 +96,7 @@ export function LoomGame({
     if (picked !== null) return;
     setPicked(m);
     const outcome: TrialOutcome = { correct: m === item.answer };
-    window.setTimeout(() => completeTrial(outcome), 700);
+    later(() => completeTrial(outcome), 700);
   };
 
   return (

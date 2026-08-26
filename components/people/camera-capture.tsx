@@ -42,8 +42,13 @@ export function CameraCapture({
   const { toast } = useToast();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  // Generation counter: closing (or restarting) invalidates any in-flight
+  // getUserMedia, so a late-resolving permission prompt can never leave a
+  // live camera attached to an unmounted <video> (privacy light stays on).
+  const generationRef = useRef(0);
 
   const stopCamera = useCallback(() => {
+    generationRef.current++;
     if (streamRef.current) {
       for (const track of streamRef.current.getTracks()) track.stop();
       streamRef.current = null;
@@ -52,6 +57,7 @@ export function CameraCapture({
   }, []);
 
   const startCamera = useCallback(async () => {
+    const generation = ++generationRef.current;
     setStatus("starting");
     setFailure(null);
     stopCamera();
@@ -65,13 +71,23 @@ export function CameraCapture({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
+      if (generation !== generationRef.current) {
+        for (const track of stream.getTracks()) track.stop();
+        return;
+      }
       streamRef.current = stream;
       video.srcObject = stream;
       video.muted = true;
       video.playsInline = true;
       await video.play().catch(() => undefined);
+      if (generation !== generationRef.current) {
+        for (const track of stream.getTracks()) track.stop();
+        if (streamRef.current === stream) streamRef.current = null;
+        return;
+      }
       setStatus("ready");
     } catch (error) {
+      if (generation !== generationRef.current) return;
       streamRef.current = null;
       const name = error instanceof DOMException ? error.name : "";
       if (name === "NotAllowedError" || name === "SecurityError") setStatus("denied");

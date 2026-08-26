@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Heart, Plus, ScanFace, ShieldCheck, Sparkles } from "lucide-react";
+import { Activity, Heart, Plus, ScanFace, ShieldCheck, Sparkles } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AnimatedNumber } from "@/components/ui/animated-number";
@@ -12,14 +12,37 @@ import { PersonCard } from "@/components/people/person-card";
 import { usePeople } from "@/hooks/use-people";
 import { greetingForHour } from "@/lib/utils/format";
 import { loadDemoPeople } from "@/lib/demo/seed";
+import { getRecentSessions } from "@/lib/storage/progress";
+import { adherence } from "@/lib/cognition/trends";
 
 export default function CaregiverDashboard() {
   const { people, loading, storageError, refresh } = usePeople();
   const { toast } = useToast();
   const [demoLoading, setDemoLoading] = useState(false);
+  const [weekStats, setWeekStats] = useState<{ sessions: number; days: number } | null>(null);
   const greeting = useMemo(() => greetingForHour(new Date().getHours()), []);
 
   const readyCount = people.filter((p) => p.descriptors.length > 0).length;
+
+  // One-shot glanceable adherence for the summary strip — full trends
+  // live in /analytics, this just answers "did they play this week?".
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const sessions = await getRecentSessions(7);
+        if (!cancelled) {
+          const a = adherence(sessions);
+          setWeekStats({ sessions: a.sessionsLast7Days, days: a.activeDaysLast7Days });
+        }
+      } catch {
+        if (!cancelled) setWeekStats(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleLoadDemo() {
     setDemoLoading(true);
@@ -47,7 +70,7 @@ export default function CaregiverDashboard() {
       </header>
 
       {/* Summary */}
-      <section aria-label="Summary" className="reveal-stagger mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section aria-label="Summary" className="reveal-stagger mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Card className="flex items-center gap-4 p-5">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent">
             <Heart className="h-6 w-6" aria-hidden />
@@ -66,6 +89,24 @@ export default function CaregiverDashboard() {
             <AnimatedNumber value={readyCount} className="text-3xl font-bold" />
           </div>
         </Card>
+        <Link
+          href="/analytics"
+          className="group flex items-center gap-4 rounded-[var(--radius-card,1.5rem)] border border-line bg-surface p-5 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-lift"
+        >
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
+            <Activity className="h-6 w-6" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold uppercase tracking-wide text-ink-soft">This Week</p>
+            {weekStats ? (
+              <p className="truncate text-lg font-bold leading-tight pt-1 text-ink">
+                {weekStats.sessions} sessions · {weekStats.days}/7 days
+              </p>
+            ) : (
+              <p className="text-lg font-bold leading-tight pt-1 text-ink-soft">No play yet</p>
+            )}
+          </div>
+        </Link>
         <Card className="flex items-center gap-4 p-5">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-stone-100 text-stone-500">
             <ShieldCheck className="h-6 w-6" aria-hidden />

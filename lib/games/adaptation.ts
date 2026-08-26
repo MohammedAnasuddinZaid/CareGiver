@@ -91,8 +91,12 @@ export function prescribeDailySession(
     score += Math.min(recencyWeightDays, daysIdle) / recencyWeightDays;
     if (!lastPlayedAt.has(id)) reasons.push("new for you");
 
-    // Cooldown penalty when recently played.
-    const hours = lastPlayedAt.has(id) ? hoursSince(lastPlayedAt.get(id)!, nowMs) : Infinity;
+    // Cooldown penalty when recently played. Future timestamps (clock
+    // skew, imported data) are clamped so they can't produce a huge
+    // negative-hours bonus/penalty.
+    const hours = lastPlayedAt.has(id)
+      ? Math.max(0, hoursSince(lastPlayedAt.get(id)!, nowMs))
+      : Infinity;
     if (hours < sameGameCooldownHours) {
       score -= (1 - hours / sameGameCooldownHours) * 2.5;
       if (picked.length && picked.includes(id)) score -= 10;
@@ -100,8 +104,13 @@ export function prescribeDailySession(
 
     // Mild rotating preference keeps plans stable WITHIN a day yet
     // guarantees every game in the library gets its turn across days
-    // (the tiebreak index shifts one position per day).
-    const dayNumber = Math.floor(nowMs / 86_400_000);
+    // (the tiebreak index shifts one position per day). Uses the LOCAL
+    // calendar day — a UTC-epoch day flips at e.g. 5:30 AM for IST
+    // users, visibly reshuffling the plan mid-morning.
+    const nowDate = new Date(nowMs);
+    const dayNumber =
+      Date.UTC(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate()) /
+      86_400_000;
     const rotated =
       (GAME_IDS_STABLE.indexOf(id) + dayNumber) % GAME_IDS_STABLE.length;
     const stability = rotated * 0.01;

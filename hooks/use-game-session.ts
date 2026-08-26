@@ -82,7 +82,10 @@ export function useGameSession({ game }: UseGameSessionArgs) {
   const endedEarlyRef = useRef(false);
   const finishedRef = useRef(false);
 
-  // Load stored ability for this domain, seed the session.
+  // Load stored ability for this GAME, seed the session.
+  // Keyed on `game`, not `domain`: three games share each domain, so a
+  // same-domain navigation must NOT inherit the previous game's trials,
+  // staircase or summary state.
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
@@ -108,7 +111,7 @@ export function useGameSession({ game }: UseGameSessionArgs) {
     return () => {
       cancelled = true;
     };
-  }, [domain]);
+  }, [game, domain]);
 
   /** Games call when an item is presented so response timing starts here. */
   const startTrial = useCallback((itemId: string): void => {
@@ -116,54 +119,6 @@ export function useGameSession({ game }: UseGameSessionArgs) {
     t0Ref.current =
       typeof performance !== "undefined" ? performance.now() : Date.now();
   }, []);
-
-  /**
-   * Records one outcome, advances the staircase and schedules fatigue
-   * checks. Returns nothing; re-renders deliver the next difficulty.
-   */
-  const completeTrial = useCallback(
-    (outcome: TrialOutcome): void => {
-      if (finishedRef.current || status !== "active") return;
-      const nowMs =
-        typeof performance !== "undefined" ? performance.now() : Date.now();
-      const rtMs = Math.max(
-        150,
-        Math.min(600_000, Math.round(nowMs - t0Ref.current)),
-      );
-
-      trialsRef.current.push({
-        itemId: itemIdRef.current || `${game}-item-${itemIndex}`,
-        difficulty,
-        correct: outcome.correct,
-        rtMs,
-        hintsUsed: outcome.hintsUsed ?? 0,
-        at: new Date().toISOString(),
-      });
-
-      advanceStaircase(staircaseRef.current, outcome.correct);
-
-      const planned = gamesConfig.sessions.itemsPerSession;
-      const nextIndex = itemIndex + 1;
-
-      // Fatigue: compare recent median RT vs earlier baseline, kind ending.
-      const rts = trialsRef.current.map((t) => t.rtMs);
-      const half = Math.floor(rts.length / 2);
-      const shouldEndForFatigue =
-        nextIndex >= planned ||
-        (rts.length >= gamesConfig.sessions.minimumItemsBeforeFatigueEnd * 2 &&
-          detectFatigue(rts.slice(half), rts.slice(0, Math.max(half, 3))));
-
-      if (shouldEndForFatigue) {
-        endedEarlyRef.current = nextIndex < planned;
-        void finish();
-        return;
-      }
-
-      setItemIndex(nextIndex);
-      setDifficulty(staircaseDifficulty(staircaseRef.current, theta));
-    },
-    [difficulty, game, itemIndex, status, theta],
-  );
 
   const finish = useCallback(async (): Promise<void> => {
     if (finishedRef.current) return;
@@ -215,6 +170,54 @@ export function useGameSession({ game }: UseGameSessionArgs) {
     setTheta(after.theta);
     setStatus("summary");
   }, [domain, game]);
+
+  /**
+   * Records one outcome, advances the staircase and schedules fatigue
+   * checks. Returns nothing; re-renders deliver the next difficulty.
+   */
+  const completeTrial = useCallback(
+    (outcome: TrialOutcome): void => {
+      if (finishedRef.current || status !== "active") return;
+      const nowMs =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+      const rtMs = Math.max(
+        150,
+        Math.min(600_000, Math.round(nowMs - t0Ref.current)),
+      );
+
+      trialsRef.current.push({
+        itemId: itemIdRef.current || `${game}-item-${itemIndex}`,
+        difficulty,
+        correct: outcome.correct,
+        rtMs,
+        hintsUsed: outcome.hintsUsed ?? 0,
+        at: new Date().toISOString(),
+      });
+
+      advanceStaircase(staircaseRef.current, outcome.correct);
+
+      const planned = gamesConfig.sessions.itemsPerSession;
+      const nextIndex = itemIndex + 1;
+
+      // Fatigue: compare recent median RT vs earlier baseline, kind ending.
+      const rts = trialsRef.current.map((t) => t.rtMs);
+      const half = Math.floor(rts.length / 2);
+      const shouldEndForFatigue =
+        nextIndex >= planned ||
+        (rts.length >= gamesConfig.sessions.minimumItemsBeforeFatigueEnd * 2 &&
+          detectFatigue(rts.slice(half), rts.slice(0, Math.max(half, 3))));
+
+      if (shouldEndForFatigue) {
+        endedEarlyRef.current = nextIndex < planned;
+        void finish();
+        return;
+      }
+
+      setItemIndex(nextIndex);
+      setDifficulty(staircaseDifficulty(staircaseRef.current, theta));
+    },
+    [difficulty, finish, game, itemIndex, status, theta],
+  );
 
   const quit = useCallback((): void => {
     if (status === "active") void finish();

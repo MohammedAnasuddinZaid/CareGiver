@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { mulberry32, shuffle } from "@/lib/games/rng";
 import type { GameStageProps } from "./faces-game";
@@ -50,12 +50,21 @@ export function RoutineGame({
   const mistakesRef = useRef(0);
   const finishedRef = useRef(false);
 
+  const timersRef = useRef<number[]>([]);
+  const later = useCallback((fn: () => void, ms: number): void => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+
   useEffect(() => {
     setPlacedIds([]);
     setMistakeAt(null);
     mistakesRef.current = 0;
     finishedRef.current = false;
     startTrial(`routine:${itemKey}`);
+    return () => {
+      for (const t of timersRef.current) window.clearTimeout(t);
+      timersRef.current = [];
+    };
   }, [itemKey, startTrial]);
 
   const tapCard = (stepId: string): void => {
@@ -71,12 +80,12 @@ export function RoutineGame({
           correct: mistakesRef.current === 0,
           hintsUsed: Math.min(mistakesRef.current, 9),
         };
-        window.setTimeout(() => completeTrial(outcome), 500);
+        later(() => completeTrial(outcome), 500);
       }
     } else {
       mistakesRef.current += 1;
       setMistakeAt(stepId);
-      window.setTimeout(() => setMistakeAt(null), 650);
+      later(() => setMistakeAt(null), 650);
     }
   };
 

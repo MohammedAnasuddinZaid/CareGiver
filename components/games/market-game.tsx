@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
-import { mulberry32, shuffle } from "@/lib/games/rng";
+import { buildMarketLayout } from "@/lib/games/market-layout";
 import type { GameStageProps } from "./faces-game";
 import type { TrialOutcome } from "@/hooks/use-game-session";
 
@@ -10,6 +10,10 @@ import type { TrialOutcome } from "@/hooks/use-game-session";
  * "Market Basket" — working-memory span training with an interference
  * delay, themed on the region's markets (Ima Keithel, weekly haats).
  * Phase 1 shows a basket of K items; phase 2 finds them on a full shelf.
+ *
+ * The shelf layout comes from an independent permutation
+ * (lib/games/market-layout.ts), so memorized items are scattered across
+ * the grid instead of sitting at the front in the practiced order.
  */
 
 interface Goods {
@@ -41,60 +45,69 @@ export function MarketGame({
 }: GameStageProps) {
   const level = Math.max(0, difficultyLevel(difficulty));
   const listSize = Math.min(6, 2 + level);
-  const shelfSize = 12;
+  const holdMs = 2600 + listSize * 900; // harder lists get a little longer
 
   const [phase, setPhase] = useState<"memorize" | "find">("memorize");
   const [foundIds, setFoundIds] = useState<string[]>([]);
   const [wrongIds, setWrongIds] = useState<string[]>([]);
   const mistakesRef = useRef(0);
+  const doneRef = useRef(false);
 
-  const item = useMemo(() => {
-    const rand = mulberry32(itemKey * 104729 + 5);
-    return shuffle(MARKET_GOODS, rand);
-  }, [itemKey]);
+  const timersRef = useRef<number[]>([]);
+  const later = useCallback((fn: () => void, ms: number): void => {
+    timersRef.current.push(window.setTimeout(fn, ms));
+  }, []);
+  const clearTimers = useCallback((): void => {
+    for (const t of timersRef.current) window.clearTimeout(t);
+    timersRef.current = [];
+  }, []);
 
-  const basket = useMemo(() => item.slice(0, listSize), [item, listSize]);
-  const shelf = useMemo(() => item.slice(0, shelfSize), [item]);
+  const { basket, shelf } = useMemo(
+    () => buildMarketLayout(MARKET_GOODS, itemKey * 104729 + 5, listSize),
+    [itemKey, listSize],
+  );
 
-  // Phase lifecycle.
+  // Phase lifecycle. Leaving the item (new key or unmount) cancels every
+  // pending completion timer so no ghost trial is ever recorded.
   useEffect(() => {
     setPhase("memorize");
     setFoundIds([]);
     setWrongIds([]);
     mistakesRef.current = 0;
-  }, [itemKey]);
+    doneRef.current = false;
+    return clearTimers;
+  }, [itemKey, clearTimers]);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
 
   useEffect(() => {
     if (phase !== "memorize") return;
     startTrial(`market:${itemKey}`);
-    const holdMs = 2600 + listSize * 900; // harder lists get a little longer
     const timer = window.setTimeout(() => setPhase("find"), holdMs);
     return () => window.clearTimeout(timer);
-  }, [phase, itemKey, listSize, startTrial]);
+  }, [phase, itemKey, holdMs, startTrial]);
 
   const finishItem = (mistakes: number): void => {
-    const outcome: TrialOutcome = {
-      correct: mistakes === 0,
-      hintsUsed: mistakes,
-    };
-    completeTrial(outcome);
+    if (doneRef.current) return;
+    doneRef.current = true;
+    completeTrial({ correct: mistakes === 0, hintsUsed: Math.min(mistakes, 9) });
   };
 
   const pickFromShelf = (goodsId: string): void => {
-    if (phase !== "find" || foundIds.includes(goodsId)) return;
+    if (phase !== "find" || doneRef.current || foundIds.includes(goodsId)) return;
     const inBasket = basket.some((g) => g.id === goodsId);
     if (inBasket) {
       const nextFound = [...foundIds, goodsId];
       setFoundIds(nextFound);
       if (nextFound.length === basket.length) {
-        window.setTimeout(() => finishItem(mistakesRef.current), 550);
+        later(() => finishItem(mistakesRef.current), 550);
       }
     } else {
       mistakesRef.current += 1;
       setWrongIds((w) => [...w, goodsId]);
       // Errorless learning: three misses end the item with partial credit.
       if (mistakesRef.current >= 3) {
-        window.setTimeout(() => finishItem(mistakesRef.current), 500);
+        later(() => finishItem(mistakesRef.current), 500);
       }
     }
   };
@@ -121,9 +134,7 @@ export function MarketGame({
           >
             <div
               className="h-full rounded-full bg-accent"
-              style={{
-                animation: `shrink ${2600 + listSize * 900}ms linear forwards`,
-              }}
+              style={{ animation: `shrink ${holdMs}ms linear forwards` }}
             />
           </div>
         </>
@@ -135,6 +146,7 @@ export function MarketGame({
                 key={g.id}
                 onClick={() => pickFromShelf(g.id)}
                 disabled={foundIds.includes(g.id)}
+                aria-label={g.name}
                 className={
                   "flex min-h-[84px] flex-col items-center justify-center rounded-3xl border-2 px-2 py-3 transition-all active:scale-[0.97] disabled:opacity-45 " +
                   (wrongIds.includes(g.id)

@@ -5,6 +5,7 @@ import {
   dbGet,
   dbGetAll,
   dbPut,
+  dbTransactionalWrite,
   STORE_ABILITY,
   STORE_OUTBOX,
   STORE_SESSIONS,
@@ -135,15 +136,17 @@ export async function pruneSessions(keepPerGame = 120): Promise<number> {
     list.push(s);
     byGame.set(s.game, list);
   }
-  let pruned = 0;
+  const excess: GameSession[] = [];
   for (const [, list] of byGame) {
-    const excess = list.length - keepPerGame;
-    for (let i = 0; i < excess; i++) {
-      await dbDelete(STORE_SESSIONS, list[i].id);
-      pruned++;
-    }
+    if (list.length > keepPerGame) excess.push(...list.slice(0, list.length - keepPerGame));
   }
-  return pruned;
+  if (excess.length === 0) return 0;
+  // One atomic transaction instead of N sequential ones — pruning runs
+  // right after each session save, so this trims end-of-session latency.
+  await dbTransactionalWrite(
+    excess.map((s) => ({ store: STORE_SESSIONS, type: "delete" as const, key: s.id })),
+  );
+  return excess.length;
 }
 
 export async function clearSessions(): Promise<void> {

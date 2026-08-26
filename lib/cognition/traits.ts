@@ -93,6 +93,40 @@ export function itemDifficultyForTarget(theta: number): number {
   return theta - Math.log(t / (1 - t));
 }
 
+// ---------------------------------------------------------------------------
+// Measurement precision (Fisher information).
+// A point estimate of ability without an uncertainty band is false
+// precision; caregivers deserve to know how much evidence sits behind a
+// "Level 2.3". Rasch test information is additive across items:
+//   I(θ) = Σ p_i(1−p_i),   SE(θ) = 1 / √I
+// Information peaks when item difficulty matches ability — which is also
+// exactly where the adaptive scheduler aims, so precision grows fastest
+// for players being challenged correctly.
+// ---------------------------------------------------------------------------
+
+/** Fisher information contributed by ONE item at difficulty `b`. */
+export function itemInformation(theta: number, b: number): number {
+  const p = predictedSuccess(theta, b);
+  return p * (1 - p);
+}
+
+/**
+ * Standard error of the ability estimate given the difficulties seen.
+ * Returns null before any informative items exist (ΣI ≈ 0), so callers
+ * can show "not enough evidence" instead of a fake number.
+ */
+export function thetaStandardError(
+  theta: number,
+  difficulties: readonly number[],
+): number | null {
+  let info = 0;
+  for (const b of difficulties) {
+    if (!Number.isFinite(b)) continue;
+    info += itemInformation(theta, b);
+  }
+  return info > 1e-9 ? 1 / Math.sqrt(info) : null;
+}
+
 /** Plain-language difficulty level 0..4 for UI display. */
 export function difficultyLevel(b: number): number {
   return Math.min(4, Math.max(0, Math.round((b + 1.2) / 0.6)));
@@ -183,9 +217,34 @@ export function olsSlope(points: TrendPoint[]): number | null {
   return num / den;
 }
 
+function median(xs: number[]): number {
+  const s = xs.slice().sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
 /**
- * Fatigue heuristic: median RT of the recent window vs the baseline window
- * grows beyond the configured fraction → end the session kindly.
+ * Median absolute deviation — a robust spread estimator. One wild
+ * outlier (a sneeze, a notification) moves the MAD barely at all,
+ * unlike standard deviation.
+ */
+export function medianAbsoluteDeviation(xs: number[]): number {
+  if (xs.length === 0) return 0;
+  const m = median(xs);
+  return median(xs.map((x) => Math.abs(x - m)));
+}
+
+/**
+ * Fatigue heuristic v2 — two robust signals, either fires:
+ *
+ * 1. SLOWING — recent median RT outgrows the baseline by the configured
+ *    fraction (classic vigilance decrement).
+ * 2. SCATTER — response-time MAD balloons even at constant speed.
+ *    Mental fatigue often shows as erratic timing BEFORE overall slowing;
+ *    catching it ends sessions kindly one step earlier.
+ *
+ * Both statistics are median/MAD-based so a single distracted tap can
+ * never trigger or mask fatigue.
  */
 export function detectFatigue(recentRts: number[], baselineRts: number[]): boolean {
   if (
@@ -194,12 +253,14 @@ export function detectFatigue(recentRts: number[], baselineRts: number[]): boole
   ) {
     return false;
   }
-  const median = (xs: number[]): number => {
-    const s = xs.slice().sort((a, b) => a - b);
-    const mid = s.length >> 1;
-    return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-  };
   const base = median(baselineRts);
   if (!Number.isFinite(base) || base <= 0) return false;
-  return median(recentRts) / base - 1 > gamesConfig.sessions.fatigueRtGrowth;
+  const slowGrowth = median(recentRts) / base - 1 > gamesConfig.sessions.fatigueRtGrowth;
+  if (slowGrowth) return true;
+
+  const baseMad = medianAbsoluteDeviation(baselineRts);
+  if (baseMad <= 0) return false; // perfectly steady baseline — nothing to compare
+  const scatterGrowth =
+    medianAbsoluteDeviation(recentRts) / baseMad;
+  return scatterGrowth > gamesConfig.sessions.fatigueScatterGrowth;
 }

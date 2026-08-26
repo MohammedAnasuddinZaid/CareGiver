@@ -130,10 +130,11 @@ export default function LandingPage() {
           </div>
           <h2 className="mt-5 text-2xl font-bold tracking-tight">Mind Games that adapt to you</h2>
           <p className="mt-3 text-lg leading-relaxed text-ink-soft">
-            Six gentle exercises — family photos, market memory, morning
-            routines, patterns, attention and finding things — with difficulty
-            that tunes itself to each day&apos;s performance. Progress is
-            visible to caregivers, and reminders keep the whole day on track.
+            Twelve gentle exercises — family photos, market memory, card
+            pairs, tunes, morning routines, patterns, attention, number
+            trails and finding things — with difficulty that tunes itself to
+            each day&apos;s performance. Progress is visible to caregivers,
+            and reminders keep the whole day on track.
           </p>
         </SpotlightCard>
         <SpotlightCard className="h-full rounded-3xl bg-surface border border-line shadow-soft p-7 transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">

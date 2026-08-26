@@ -103,7 +103,9 @@ function GameHost({ gameId }: { gameId: GameId }) {
   useEffect(() => {
     if (session.status !== "active") return;
     const onBeforeUnload = (e: BeforeUnloadEvent): void => {
+      // Chrome needs preventDefault(); Safari/older Chrome need returnValue.
       e.preventDefault();
+      e.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
