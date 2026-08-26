@@ -305,3 +305,24 @@ input[type="range"].ma-range::-moz-range-thumb {
   background: rgb(var(--ma-line));
   border-radius: 9999px;
 }
+
+/* Google Stitch Landing Design Styles */
+.ken-burns {
+  animation: kenBurns 20s infinite alternate ease-in-out;
+}
+@keyframes kenBurns {
+  0% { transform: scale(1.0); }
+  100% { transform: scale(1.06); }
+}
+
+.woven-motif {
+  background-image: linear-gradient(45deg, rgba(15,118,110,0.05) 25%, transparent 25%, transparent 50%, rgba(15,118,110,0.05) 50%, rgba(15,118,110,0.05) 75%, transparent 75%, transparent);
+  background-size: 8px 8px;
+}
+
+.glass-panel {
+  background: rgba(252, 249, 244, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 32px rgba(15, 118, 110, 0.08);
+}
