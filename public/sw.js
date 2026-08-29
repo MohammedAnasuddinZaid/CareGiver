@@ -1,5 +1,5 @@
 /*
- * MemoryAssist service worker.
+ * CareGiver service worker.
  *
  * Strategy:
  *  - /models/*        → cache-first forever (large ML weights, immutable)
@@ -95,7 +95,7 @@ self.addEventListener("fetch", (event) => {
             (await cache.match("/recognition"));
           if (hit) return hit;
           return new Response(
-            "<!doctype html><meta charset=utf-8><title>MemoryAssist</title><p style=\"font-family:sans-serif;padding:2rem\">You are offline. Reopen MemoryAssist once while online to finish setup.</p>",
+            "<!doctype html><meta charset=utf-8><title>CareGiver</title><p style=\"font-family:sans-serif;padding:2rem\">You are offline. Reopen CareGiver once while online to finish setup.</p>",
             { headers: { "Content-Type": "text/html" } },
           );
         }

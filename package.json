@@ -2,7 +2,7 @@
   "name": "memoryassist",
   "version": "1.0.0",
   "private": true,
-  "description": "MemoryAssist — a privacy-first assistive web app that helps people with memory impairment recognize familiar people, entirely on-device.",
+  "description": "CareGiver — a privacy-first assistive web app that helps people with memory impairment recognize familiar people, entirely on-device.",
   "engines": {
     "node": ">=18.17"
   },

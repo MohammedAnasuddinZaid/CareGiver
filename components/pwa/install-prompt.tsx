@@ -114,7 +114,7 @@ export function InstallPrompt() {
     <Modal
       open={open}
       onClose={dismiss}
-      title={installed ? "Already installed" : "Install MemoryAssist"}
+      title={installed ? "Already installed" : "Install CareGiver"}
     >
       <div className="space-y-5">
         <div className="flex items-start gap-4">
@@ -122,7 +122,7 @@ export function InstallPrompt() {
             <Smartphone className="h-7 w-7 text-accent" />
           </div>
           <p className="text-lg leading-relaxed text-ink-soft">
-            Add MemoryAssist to your home screen. It opens like a normal app — full
+            Add CareGiver to your home screen. It opens like a normal app — full
             screen, offline-capable, and your private data stays right here on the
             device.
           </p>
@@ -131,14 +131,14 @@ export function InstallPrompt() {
         {installed ? (
           <div className="flex items-center gap-3 rounded-2xl border border-ok/30 bg-ok/5 px-5 py-4 text-base font-medium text-ink">
             <Check className="h-5 w-5 text-ok" />
-            You&apos;re all set — MemoryAssist is installed.
+            You&apos;re all set — CareGiver is installed.
           </div>
         ) : ios ? (
           <ol className="space-y-3">
             {[
               "Tap the Share icon at the bottom of the screen.",
               "Scroll down and tap “Add to Home Screen”.",
-              "Tap Add — MemoryAssist appears on your home screen.",
+              "Tap Add — CareGiver appears on your home screen.",
             ].map((step, i) => (
               <li key={i} className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-white">

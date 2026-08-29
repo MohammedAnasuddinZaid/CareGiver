@@ -3,12 +3,12 @@ import Link from "next/link";
 import { ArrowLeft, Scale } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "License · MemoryAssist",
-  description: "MIT Open Source License terms for MemoryAssist.",
+  title: "License · CareGiver",
+  description: "MIT Open Source License terms for CareGiver.",
 };
 
 // Kept in sync with the LICENSE file at the repo root.
-const LICENSE_TEXT = `Copyright (c) 2026 MemoryAssist contributors
+const LICENSE_TEXT = `Copyright (c) 2026 CareGiver contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ export default function LicensePage() {
             MIT License
           </h1>
           <p className="mt-2 text-base text-ink-soft">
-            MemoryAssist is released under the permissive open-source MIT license.
+            CareGiver is released under the permissive open-source MIT license.
           </p>
         </header>
 

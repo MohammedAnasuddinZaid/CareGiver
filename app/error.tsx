@@ -22,7 +22,7 @@ export default function GlobalError({
       <EmptyState
         icon={<TriangleAlert className="h-8 w-8" aria-hidden />}
         title="Something went wrong"
-        body="We couldn't load this part of MemoryAssist. Your saved people are safe on this device."
+        body="We couldn't load this part of CareGiver. Your saved people are safe on this device."
         action={
           <>
             <Button onClick={reset} size="lg">

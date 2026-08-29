@@ -5,8 +5,8 @@ import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 export const metadata: Metadata = {
-  title: "References & Academic Evidence · MemoryAssist",
-  description: "Published research papers, clinical guidelines, and cognitive science foundations behind MemoryAssist and Mind Games.",
+  title: "References & Academic Evidence · CareGiver",
+  description: "Published research papers, clinical guidelines, and cognitive science foundations behind CareGiver and Mind Games.",
 };
 
 const SECTIONS = [
@@ -188,7 +188,7 @@ export default function ReferencesPage() {
             References & Research Papers
           </h1>
           <p className="mt-4 text-lg leading-relaxed text-ink-soft">
-            MemoryAssist and Mind Games are not arbitrary software features. Every game mechanic, therapeutic protocol, and privacy-first architectural choice traces back to peer-reviewed dementia research, clinical guidelines, and computer vision literature.
+            CareGiver and Mind Games are not arbitrary software features. Every game mechanic, therapeutic protocol, and privacy-first architectural choice traces back to peer-reviewed dementia research, clinical guidelines, and computer vision literature.
           </p>
         </header>
 

@@ -38,7 +38,7 @@ const CAMERA_MESSAGES = {
   },
   insecure: {
     title: "Camera needs a secure connection.",
-    body: "Open MemoryAssist over HTTPS or on localhost.",
+    body: "Open CareGiver over HTTPS or on localhost.",
   },
   unsupported: {
     title: "Camera recognition isn’t supported in this browser.",

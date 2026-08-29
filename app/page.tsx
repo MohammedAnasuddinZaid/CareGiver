@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -212,7 +212,7 @@ export default function LandingPage() {
 
       {/* How it works */}
       <section
-        aria-label="How MemoryAssist works"
+        aria-label="How CareGiver works"
         className="mx-auto max-w-7xl px-4 pb-20 md:px-6"
       >
         <motion.div
@@ -289,7 +289,7 @@ export default function LandingPage() {
       <Modal
         open={onboardingOpen}
         onClose={closeOnboarding}
-        title="Welcome to MemoryAssist"
+        title="Welcome to CareGiver"
       >
         {slide === 0 && (
           <div className="animate-fade-in">
@@ -297,7 +297,7 @@ export default function LandingPage() {
               <Heart className="h-12 w-12" aria-hidden />
             </div>
             <p className="text-lg leading-relaxed text-ink-soft">
-              MemoryAssist helps people with memory impairment recognize
+              CareGiver helps people with memory impairment recognize
               familiar people — gently, privately, and right on the device they
               already use.
             </p>

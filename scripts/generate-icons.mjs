@@ -1,6 +1,6 @@
 /**
  * Generates PWA icons without external dependencies.
- * Renders the MemoryAssist mark (person glyph on teal rounded square)
+ * Renders the CareGiver mark (person glyph on teal rounded square)
  * with 4x4 supersampling for smooth edges, then encodes PNGs via zlib.
  *
  *   node scripts/generate-icons.mjs

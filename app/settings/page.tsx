@@ -82,7 +82,7 @@ export default function SettingsPage() {
       }
 
       const bundle = {
-        app: "MemoryAssist" as const,
+        app: "CareGiver" as const,
         schemaVersion: EXPORT_SCHEMA_VERSION,
         exportedAt: new Date().toISOString(),
         profiles,

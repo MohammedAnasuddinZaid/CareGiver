@@ -118,7 +118,7 @@ export function buildReportHtml({ coach, sessions, generatedAt }: ReportInput): 
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"/>
-<title>MemoryAssist Progress Report</title>
+<title>CareGiver Progress Report</title>
 <style>
   body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c1c19;max-width:780px;margin:0 auto;padding:32px;line-height:1.5}
   h1{color:#0f766e;margin-bottom:0}
@@ -132,7 +132,7 @@ export function buildReportHtml({ coach, sessions, generatedAt }: ReportInput): 
   @media print{body{padding:12px}}
 </style></head>
 <body>
-  <h1>MemoryAssist — Progress Report</h1>
+  <h1>CareGiver — Progress Report</h1>
   <p class="muted">Generated ${esc(dateStr(generatedAt))} · all data stays on this device</p>
 
   <div class="banner">
@@ -183,7 +183,7 @@ export function buildReportHtml({ coach, sessions, generatedAt }: ReportInput): 
 
   <div class="foot">
     This report was generated entirely on your device from locally stored activity.
-    No photos, names or results were uploaded to any server. MemoryAssist is a
+    No photos, names or results were uploaded to any server. CareGiver is a
     supportive tool, not a medical diagnosis.
   </div>
   <script>window.onload=function(){setTimeout(function(){window.print();},250);};</script>

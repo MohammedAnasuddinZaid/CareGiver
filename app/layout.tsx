@@ -12,13 +12,13 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "MemoryAssist — Helping familiar faces stay familiar",
-    template: "%s · MemoryAssist",
+    default: "CareGiver — Helping familiar faces stay familiar",
+    template: "%s · CareGiver",
   },
   description:
     "A privacy-first assistive web app that helps people with memory impairment recognize the people who matter most — entirely on-device.",
-  applicationName: "MemoryAssist",
-  appleWebApp: { capable: true, title: "MemoryAssist", statusBarStyle: "default" },
+  applicationName: "CareGiver",
+  appleWebApp: { capable: true, title: "CareGiver", statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
 

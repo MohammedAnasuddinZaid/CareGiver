@@ -54,12 +54,12 @@ export function validateAndParseImport(raw: unknown): ImportResult {
   const result: ImportResult = { profiles: [], assets: [], skipped: [] };
 
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    result.skipped.push("File is not a MemoryAssist backup.");
+    result.skipped.push("File is not a CareGiver backup.");
     return result;
   }
   const bundle = raw as Record<string, unknown>;
-  if (bundle.app !== "MemoryAssist") {
-    result.skipped.push("This file was not exported from MemoryAssist.");
+  if (bundle.app !== "CareGiver" && bundle.app !== "MemoryAssist") {
+    result.skipped.push("This file was not exported from CareGiver.");
     return result;
   }
   if (

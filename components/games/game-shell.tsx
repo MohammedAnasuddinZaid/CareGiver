@@ -173,7 +173,7 @@ export function SummaryView({ summary }: SummaryViewProps) {
           className="inline-flex min-h-[52px] items-center justify-center gap-2 rounded-full border border-line px-8 py-3 text-lg font-semibold text-ink transition-colors hover:bg-surface-muted"
         >
           <Home className="h-5 w-5" />
-          MemoryAssist
+          CareGiver
         </Link>
       </div>
       <p className="max-w-xs text-sm leading-relaxed text-ink-soft">

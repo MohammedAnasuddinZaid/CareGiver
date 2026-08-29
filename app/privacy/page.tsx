@@ -61,7 +61,7 @@ export default function PrivacyPage() {
         </span>
         <h1 className="mt-6 text-4xl font-extrabold tracking-tight md:text-5xl">Privacy first</h1>
         <p className="mt-4 text-xl leading-relaxed text-ink-soft">
-          MemoryAssist is designed to keep recognition data on your device.
+          CareGiver is designed to keep recognition data on your device.
           The camera experience processes video locally, and your profiles are
           never designed to leave this browser.
         </p>
@@ -133,7 +133,7 @@ export default function PrivacyPage() {
       </section>
 
       <p className="pb-16 rounded-3xl border border-amber-200 bg-amber-50 p-6 text-lg leading-relaxed text-amber-900">
-        <strong>Prototype notice.</strong> MemoryAssist is a prototype assistive
+        <strong>Prototype notice.</strong> CareGiver is a prototype assistive
         tool and should not be relied upon as the sole method of identifying
         people or making safety-critical decisions.
       </p>

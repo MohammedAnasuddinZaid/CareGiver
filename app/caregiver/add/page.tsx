@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
@@ -179,7 +179,7 @@ export default function AddPersonPage() {
         {step === 0 && (
           <>
             <h1 className="text-3xl font-bold tracking-tight">Who is this person?</h1>
-            <p className="mt-2 text-lg text-ink-soft">Create a profile MemoryAssist can use to recognize them later.</p>
+            <p className="mt-2 text-lg text-ink-soft">Create a profile CareGiver can use to recognize them later.</p>
             <div className="mt-8 space-y-6">
               <Field label="Name" htmlFor="name" error={errors.name}>
                 <Input
@@ -224,7 +224,7 @@ export default function AddPersonPage() {
 
         {step === 1 && (
           <>
-            <h1 className="text-3xl font-bold tracking-tight">Tell MemoryAssist about them</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Tell CareGiver about them</h1>
             <p className="mt-2 text-lg text-ink-soft">One kind sentence is perfect — it appears when they’re recognized.</p>
             <div className="mt-8">
               <Field

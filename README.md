@@ -1,15 +1,15 @@
-﻿# MemoryAssist
+# CareGiver
 
 **Helping familiar faces stay familiar.**
 
-MemoryAssist is a privacy-first assistive web application that helps people
+CareGiver is a privacy-first assistive web application that helps people
 with memory impairment recognize the people who matter most. A caregiver adds
 familiar people — a photo, a name, a relationship, one kind sentence — and
 Companion Mode then uses the device camera to recognize them **entirely on
 the device**, displaying their name in large, calm text with optional gentle
 voice guidance.
 
-> MemoryAssist is a prototype assistive technology, **not a medical device**.
+> CareGiver is a prototype assistive technology, **not a medical device**.
 > Recognition may be incorrect — always confirm identity when it matters.
 
 ---
@@ -21,7 +21,7 @@ strangers. Cloud facial-recognition exists, but sending an elderly,
 vulnerable person's live camera feed to a server is a privacy and dignity
 problem — and it stops working offline.
 
-MemoryAssist takes a different path: **the entire recognition pipeline runs
+CareGiver takes a different path: **the entire recognition pipeline runs
 in the browser**, for free, with zero paid APIs and zero cloud services.
 The same architecture maps directly onto smart glasses in the future — the
 recognition engine already returns a plain result (a person), independent of
@@ -253,7 +253,7 @@ Run with `npm test`.
 
 ## Ethics
 
-MemoryAssist is designed to help a specific person recognize consenting
+CareGiver is designed to help a specific person recognize consenting
 family and friends, added by their caregiver, stored on their own device.
 It must not be used for covert identification of people who haven't consented.
 It makes no medical claims and does not replace human care.
@@ -266,7 +266,7 @@ It makes no medical claims and does not replace human care.
 
 ## References & Academic Evidence
 
-MemoryAssist and Mind Games draw upon peer-reviewed clinical research and computer vision literature:
+CareGiver and Mind Games draw upon peer-reviewed clinical research and computer vision literature:
 
 1. **Cognitive Stimulation Therapy (CST) & NICE Guidelines**
    - Spector, A., et al. (2003). *Cognitive stimulation therapy (CST): effects on cognition, quality of life and subjective wellbeing in dementia*. British Journal of Psychiatry, 183(3), 248–254.

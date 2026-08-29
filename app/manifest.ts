@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "MemoryAssist",
-    short_name: "MemoryAssist",
+    name: "CareGiver",
+    short_name: "CareGiver",
     description:
       "A privacy-first assistive app that helps people with memory impairment recognize familiar people and stay mentally active — entirely on-device.",
     start_url: "/",

@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { EXPORT_SCHEMA_VERSION, validateAndParseImport } from "@/lib/storage/data-transfer";
 
 const PHOTO = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
@@ -9,7 +9,7 @@ function descriptor(seed = 1): number[] {
 
 function validBundle(): Record<string, unknown> {
   return {
-    app: "MemoryAssist",
+    app: "CareGiver",
     schemaVersion: EXPORT_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     profiles: [
@@ -151,7 +151,7 @@ describe("backup import validation", () => {
   it("is immune to prototype-pollution and injected fields", () => {
     const hostile = JSON.parse(
       JSON.stringify({
-        app: "MemoryAssist",
+        app: "CareGiver",
         schemaVersion: EXPORT_SCHEMA_VERSION,
         profiles: [
           {

@@ -26,7 +26,7 @@ export function OfflineBanner() {
       className="fixed inset-x-0 top-0 z-[70] flex items-center justify-center gap-2 bg-night/95 px-4 py-2 text-sm font-medium text-teal-200 backdrop-blur animate-fade-in"
     >
       <WifiOff className="h-4 w-4 shrink-0" />
-      Offline — MemoryAssist is still available. Recognition runs on this device.
+      Offline — CareGiver is still available. Recognition runs on this device.
     </div>
   );
 }

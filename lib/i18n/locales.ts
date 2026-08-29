@@ -26,7 +26,7 @@ export const LOCALE_META: Record<
 };
 
 const en = {
-  appName: "MemoryAssist",
+  appName: "CareGiver",
   playTitle: "Mind Games",
   playSubtitle: "Gentle daily exercises, chosen just for you",
   startSession: "Start today's plan",

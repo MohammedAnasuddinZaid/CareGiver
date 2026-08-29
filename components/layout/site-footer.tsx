@@ -13,7 +13,7 @@ export function SiteFooter() {
           {/* Brand */}
           <div className="space-y-4 lg:col-span-2">
             <span className="inline-block text-2xl font-bold tracking-tight text-primary">
-              MemoryAssist
+              CareGiver
             </span>
             <p className="max-w-sm text-base leading-relaxed">
               Gentle, privacy-first assistive memory care designed with dignity
@@ -93,12 +93,12 @@ export function SiteFooter() {
 
         {/* Bottom Bar */}
         <p className="mb-6 text-center text-sm leading-relaxed md:text-left">
-          MemoryAssist is a prototype assistive technology and is not a medical
+          CareGiver is a prototype assistive technology and is not a medical
           device. Designed with privacy first — profiles and recognition stay on
           this device.
         </p>
         <div className="flex flex-col items-center justify-between gap-4 border-t border-line/70 pt-8 text-sm sm:flex-row">
-          <p>© 2026 MemoryAssist · MIT License</p>
+          <p>© 2026 CareGiver · MIT License</p>
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent-soft px-3 py-1 text-xs font-semibold text-accent">
               100% On-Device AI

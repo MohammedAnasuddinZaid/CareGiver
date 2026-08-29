@@ -1,5 +1,6 @@
 import { GAME_TITLES } from "@/components/games/game-meta";
 import { GAME_META, type GameId } from "@/lib/games/types";
+import { bestDoc, TOPIC_QUESTIONS } from "./knowledge";
 import type { AIProfile } from "./store";
 
 export type CompanionTone =
@@ -51,14 +52,6 @@ const INTENTS: Record<string, string[]> = {
   bye: ["bye", "goodnight", "good night", "see you", "take care"],
 };
 
-const DOMAIN_WORDS: Record<string, string> = {
-  memory: "memory",
-  working: "attention",
-  attention: "focus",
-  executive: "planning",
-  spatial: "where",
-};
-
 function scoreIntents(text: string): { intent: string; score: number } {
   const lower = ` ${text.toLowerCase()} `;
   let best = "chat";
@@ -105,11 +98,14 @@ function topKey(rec: Record<string, number>): string | null {
 function gameFromKey(key: string | null): GameId | null {
   if (!key) return null;
   if (key in GAME_TITLES) return key as GameId;
-  // domain key -> first game of that domain
   for (const id of Object.keys(GAME_META) as GameId[]) {
     if (GAME_META[id].domain === key) return id;
   }
   return null;
+}
+
+function cap(word: string): string {
+  return word[0].toUpperCase() + word.slice(1);
 }
 
 function nameCallout(profile: AIProfile): string {
@@ -117,9 +113,11 @@ function nameCallout(profile: AIProfile): string {
 }
 
 /**
- * The on-device companion "brain". No network, no model download — a compact,
- * explainable intent + affect model that reflects back warmth and offers a
- * concrete, personalised next step drawn from the person's own history.
+ * The on-device companion "brain". A compact, explainable intent + affect
+ * model layered on top of a retrieval knowledge base: it answers real
+ * questions about CareGiver (privacy, games, Companion Mode, reminders,
+ * progress, settings) from a fixed, reviewed set — so it can never invent
+ * facts or call a server — and it stays warm and personal the rest of the time.
  */
 export function respond(
   input: CompanionInput,
@@ -128,6 +126,7 @@ export function respond(
   const patch: LearningPatch = { turns: profile.turns + 1 };
   const lower = (input.message ?? "").toLowerCase();
   const mentioned = input.message ? matchGame(input.message) : null;
+  const doc = input.message ? bestDoc(lower) : null;
 
   // --- Contextual opening (no typed message) ---
   if (!input.message || input.message.trim().length === 0) {
@@ -146,148 +145,136 @@ export function respond(
   }
   if (intent === "sad" || intent === "anxious") patch.mood = profile.mood - 0.25;
   if (intent === "compliment" || intent === "gratitude") patch.mood = profile.mood + 0.2;
-  if (intent === "greeting" && /call me (\w+)/.test(lower)) {
+  if (intent === "greeting") {
     const m = lower.match(/call me (\w+)/);
-    if (m) patch.name = m[1][0].toUpperCase() + m[1].slice(1);
+    if (m) patch.name = cap(m[1]);
   }
   patch.notes = [input.message.slice(0, 140)];
 
-  const suggested = gameFromKey(topKey(profile.struggles)) ?? mentioned ?? null;
+  const suggested = gameFromKey(topKey(profile.struggles)) ?? mentioned ?? doc?.suggest ?? null;
   const loved = gameFromKey(topKey(profile.loves));
 
-  switch (intent) {
-    case "greeting": {
-      const tail = suggested
-        ? ` Want to try ${GAME_TITLES[suggested]} together?`
-        : ` What would you like to do today?`;
-      return {
-        reply: {
-          text: `Hello${nameCallout(profile)}! I'm right here with you.${tail}`,
-          tone: "greet",
-          quick: ["I'm a bit forgetful today", "Something fun please", "Tell me about the games"],
-          suggestGame: suggested ?? undefined,
-        },
-        patch,
-      };
-    }
-    case "sad": {
-      const tail = loved
+  // --- Emotional intents: empathy first, then an answer if one fits. ---
+  if (intent === "sad") {
+    const ans = doc
+      ? ` ${doc.answer}`
+      : loved
         ? ` How about ${GAME_TITLES[loved]}? You said you enjoy it.`
         : ` A gentle game like ${GAME_TITLES.faces} can lift the moment — no pressure.`;
-      return {
-        reply: {
-          text: `I hear you${nameCallout(profile)}, and you're not alone — I'm sitting right here with you.${tail}`,
-          tone: "empathize",
-          quick: ["I feel a little better", "Tell me something nice", "Let's play"],
-          suggestGame: loved ?? "faces",
-        },
-        patch,
-      };
-    }
-    case "anxious": {
-      return {
-        reply: {
-          text: `That's okay — let's slow down together. Take one calm breath. When you're ready, a short, easy round can settle the mind.`,
-          tone: "calm",
-          quick: ["I'm ready now", "Stay with me", "Make it easy"],
-          suggestGame: "reaction",
-        },
-        patch,
-      };
-    }
-    case "forgetful": {
-      const g = suggested ?? "names";
-      return {
-        reply: {
-          text: `Forgetting things is completely normal — these games are here to keep you company, never to test you. ${GAME_TITLES[g as GameId]} is a kind place to start; small steps, no rush.`,
-          tone: "coach",
-          quick: ["Start easy", "Remind me how it works", "I'll try"],
-          suggestGame: g as GameId,
-        },
-        patch,
-      };
-    }
-    case "frustrated": {
-      const g = suggested ?? mentioned ?? "pairs";
-      return {
-        reply: {
-          text: `I get it — that can feel annoying. Let's make it gentler: try ${GAME_TITLES[g as GameId]} on Easy, and just enjoy the moment. There are no wrong moves here.`,
-          tone: "coach",
-          quick: ["Make it easier", "I'll try again", "Something else"],
-          suggestGame: g as GameId,
-        },
-        patch,
-      };
-    }
-    case "askHelp": {
-      if (mentioned) {
-        const meta = GAME_META[mentioned];
-        return {
-          reply: {
-            text: `${GAME_TITLES[mentioned]} builds your ${meta.domain} gently. Go at your own pace — and if a round feels long, it's fine to stop. Want me to open it on Easy?`,
-            tone: "suggest",
-            quick: ["Open on easy", "How do I get better?", "Not now"],
-            suggestGame: mentioned,
-          },
-          patch,
-        };
-      }
-      return {
-        reply: {
-          text: `Of course${nameCallout(profile)}. Tell me what's on your mind — a game, a memory, or just to talk. I'll find the kindest next step for you.`,
-          tone: "suggest",
-          quick: ["I forget names", "Help me relax", "What should I play?"],
-        },
-        patch,
-      };
-    }
-    case "gratitude": {
-      return {
-        reply: {
-          text: `That means a lot${nameCallout(profile)}. I'm happy to be here with you, always. 💚`,
-          tone: "celebrate",
-          quick: ["Let's play something", "Tell me a tip"],
-        },
-        patch,
-      };
-    }
-    case "compliment": {
-      const g = loved ?? mentioned ?? "memorylane";
-      return {
-        reply: {
-          text: `I'm so glad${nameCallout(profile)}! That warmth is good for the brain. Let's keep that feeling going with ${GAME_TITLES[g as GameId]}.`,
-          tone: "celebrate",
-          quick: ["Let's go", "Tell me more", "I feel happy"],
-          suggestGame: g as GameId,
-        },
-        patch,
-      };
-    }
-    case "bye": {
-      return {
-        reply: {
-          text: `Take good care${nameCallout(profile)}. I'll be right here whenever you come back. 💚`,
-          tone: "greet",
-          quick: ["See you soon"],
-        },
-        patch,
-      };
-    }
-    default: {
-      const tail = suggested
-        ? ` Lately ${GAME_TITLES[suggested]} seemed tricky — want to try it the easy way?`
-        : ` I'm listening.`;
-      return {
-        reply: {
-          text: `I'm listening${nameCallout(profile)}.${tail}`,
-          tone: "chat",
-          quick: ["I'm a bit forgetful", "Something fun", "Help me relax"],
-          suggestGame: suggested ?? undefined,
-        },
-        patch,
-      };
-    }
+    return {
+      reply: {
+        text: `I hear you${nameCallout(profile)}, and you're not alone — I'm sitting right here with you.${ans}`,
+        tone: "empathize",
+        quick: ["I feel a little better", "Tell me something nice", "Let's play"],
+        suggestGame: loved ?? doc?.suggest ?? "faces",
+      },
+      patch,
+    };
   }
+  if (intent === "anxious") {
+    const ans = doc ? ` ${doc.answer}` : ` A short, easy round can settle the mind.`;
+    return {
+      reply: {
+        text: `That's okay — let's slow down together. Take one calm breath.${ans}`,
+        tone: "calm",
+        quick: ["I'm ready now", "Stay with me", "Make it easy"],
+        suggestGame: doc?.suggest ?? "reaction",
+      },
+      patch,
+    };
+  }
+  if (intent === "greeting") {
+    const tail = doc
+      ? ` ${doc.answer}`
+      : suggested
+        ? ` Want to try ${GAME_TITLES[suggested]} together?`
+        : ` What would you like to do today?`;
+    return {
+      reply: {
+        text: `Hello${nameCallout(profile)}! I'm right here with you.${tail}`,
+        tone: "greet",
+        quick: doc ? TOPIC_QUESTIONS.slice(0, 3) : ["I'm a bit forgetful today", "Something fun please", "Tell me about CareGiver"],
+        suggestGame: suggested ?? undefined,
+      },
+      patch,
+    };
+  }
+  if (intent === "bye") {
+    return {
+      reply: {
+        text: `Take good care${nameCallout(profile)}. I'll be right here whenever you come back. 💚`,
+        tone: "greet",
+        quick: ["See you soon"],
+      },
+      patch,
+    };
+  }
+  if (intent === "gratitude") {
+    return {
+      reply: {
+        text: `That means a lot${nameCallout(profile)}. I'm happy to be here with you, always. 💚`,
+        tone: "celebrate",
+        quick: ["Let's play something", "Tell me a tip"],
+      },
+      patch,
+    };
+  }
+  if (intent === "compliment") {
+    const g = loved ?? mentioned ?? "memorylane";
+    return {
+      reply: {
+        text: `I'm so glad${nameCallout(profile)}! That warmth is good for the brain. Let's keep that feeling going with ${GAME_TITLES[g]}.`,
+        tone: "celebrate",
+        quick: ["Let's go", "Tell me more", "I feel happy"],
+        suggestGame: g,
+      },
+      patch,
+    };
+  }
+
+  // --- Question / help / unknown: answer from the knowledge base. ---
+  if (doc) {
+    const lead =
+      intent === "frustrated"
+        ? "I get it — that can feel annoying. "
+        : intent === "forgetful"
+          ? "Forgetting things is completely normal — these games are here to keep you company, never to test you. "
+          : "";
+    return {
+      reply: {
+        text: `${lead}${doc.answer}`,
+        tone: doc.tone,
+        quick: TOPIC_QUESTIONS.slice(0, 3),
+        suggestGame: doc.suggest,
+      },
+      patch,
+    };
+  }
+
+  if (intent === "askHelp") {
+    return {
+      reply: {
+        text: `Of course${nameCallout(profile)}. I can tell you about privacy, the games, Companion Mode, reminders and your progress. What would you like to know?`,
+        tone: "suggest",
+        quick: TOPIC_QUESTIONS,
+      },
+      patch,
+    };
+  }
+
+  // Fallback: listen, and offer real topics.
+  const tail = suggested
+    ? ` Lately ${GAME_TITLES[suggested]} seemed tricky — want to try it the easy way?`
+    : "";
+  return {
+    reply: {
+      text: `I'm listening${nameCallout(profile)}.${tail}`,
+      tone: "chat",
+      quick: TOPIC_QUESTIONS,
+      suggestGame: suggested ?? undefined,
+    },
+    patch,
+  };
 }
 
 /** Proactive, page-aware tip shown when the companion first opens. */
@@ -300,14 +287,14 @@ export function routeTip(
     return {
       text: `You're on a lovely roll right now — enjoy it! I'm proud of you. 💚`,
       tone: "celebrate",
-      quick: ["Keep going", "Tell me a tip"],
+      quick: TOPIC_QUESTIONS.slice(0, 3),
     };
   }
   if (lastOutcome === "miss") {
     return {
       text: `No worry about that miss — every try helps. Take a breath, and let's try the next one together.`,
       tone: "coach",
-      quick: ["I'm okay", "Make it easier", "A kind word?"],
+      quick: TOPIC_QUESTIONS.slice(0, 3),
     };
   }
   const path = route ?? "/";
@@ -318,7 +305,7 @@ export function routeTip(
       return {
         text: `Playing ${title}? I'll quietly cheer you on. If it feels hard, just say the word and I'll suggest an easier step.`,
         tone: "coach",
-        quick: ["Make it easier", "I'm stuck", "A tip please"],
+        quick: TOPIC_QUESTIONS.slice(0, 3),
         suggestGame: id,
       };
     }
@@ -327,33 +314,40 @@ export function routeTip(
     return {
       text: `This is your games garden. The AI picks a small daily plan up top — but you can play anything. What feels good today?`,
       tone: "suggest",
-      quick: ["What should I play?", "Something easy", "I'm forgetful"],
+      quick: TOPIC_QUESTIONS,
     };
   }
   if (path.startsWith("/caregiver") || path.startsWith("/recognition")) {
     return {
       text: `Companion Mode learns faces privately on this device. Add a few photos in good light and it gets gentler and quicker.`,
       tone: "suggest",
-      quick: ["How does it work?", "Add a person", "Privacy?"],
+      quick: TOPIC_QUESTIONS,
     };
   }
   if (path.startsWith("/analytics")) {
     return {
       text: `Your progress stays here on this device. Even small, steady steps are wins — I'll help you notice them.`,
       tone: "coach",
-      quick: ["What should I improve?", "Celebrate me", "Tips"],
+      quick: TOPIC_QUESTIONS,
     };
   }
   if (path.startsWith("/reminders")) {
     return {
       text: `Gentle reminders can ease the day. Want help wording one so it feels kind, not bossy?`,
       tone: "suggest",
-      quick: ["Add a reminder", "Make it gentle", "How?"],
+      quick: TOPIC_QUESTIONS,
+    };
+  }
+  if (path.startsWith("/settings")) {
+    return {
+      text: `Here you can make CareGiver calm and readable — light or dark, larger text, voice and the in-game coach. Ask me anything about a setting.`,
+      tone: "suggest",
+      quick: TOPIC_QUESTIONS,
     };
   }
   return {
-    text: `Hi${nameCallout(profile)}! I'm your companion — I listen, learn what helps you, and stay by your side. Ask me anything, or just talk.`,
+    text: `Hi${nameCallout(profile)}! I'm your CareGiver companion — I listen, learn what helps you, and can answer questions about privacy, the games and more. Ask me anything.`,
     tone: "greet",
-    quick: ["What can you do?", "I'm a bit forgetful", "Something fun"],
+    quick: TOPIC_QUESTIONS,
   };
 }

@@ -146,7 +146,7 @@ export default function CaregiverDashboard() {
           <EmptyState
             icon={<Heart className="h-8 w-8" aria-hidden />}
             title="Build your trusted circle"
-            body="Add the people you want MemoryAssist to recognize — family, friends and caregivers."
+            body="Add the people you want CareGiver to recognize — family, friends and caregivers."
             action={
               <>
                 <ButtonLink href="/caregiver/add" size="lg">

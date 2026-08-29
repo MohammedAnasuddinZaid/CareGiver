@@ -160,7 +160,7 @@ export function CompanionAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ type: "spring", stiffness: 280, damping: 26 }}
-            className="fixed bottom-24 right-4 z-[60] flex h-[min(72vh,560px)] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-3xl border border-white/40 bg-night-card/95 shadow-lift backdrop-blur-xl md:bottom-6 md:right-6"
+            className="gradient-ring fixed bottom-24 right-4 z-[60] flex h-[min(72vh,560px)] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-3xl border border-white/40 bg-night-card/95 shadow-lift backdrop-blur-xl md:bottom-6 md:right-6"
             role="dialog"
             aria-label="AI companion chat"
           >
@@ -170,7 +170,7 @@ export function CompanionAssistant() {
                 <Heart className="h-5 w-5" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-white">Companion</p>
+                <p className="text-sm font-bold text-white">CareGiver Companion</p>
                 <p className="truncate text-xs text-white/60">
                   Listens · learns · helps · on this device
                 </p>

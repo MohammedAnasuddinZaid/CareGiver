@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -38,7 +38,7 @@ export default function AboutPage() {
           How recognition works
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-xl leading-relaxed text-ink-soft">
-          MemoryAssist runs a full face-recognition pipeline inside your
+          CareGiver runs a full face-recognition pipeline inside your
           browser — no paid AI APIs, no cloud database, no camera uploads.
         </p>
       </header>
@@ -154,7 +154,7 @@ export default function AboutPage() {
         </Card>
 
         <p className="mt-8 rounded-2xl bg-surface-muted p-5 text-center text-base text-ink-soft">
-          MemoryAssist is a prototype assistive technology, not a medical device.
+          CareGiver is a prototype assistive technology, not a medical device.
           Recognition may be incorrect — confirm identity when it matters.
         </p>
       </section>

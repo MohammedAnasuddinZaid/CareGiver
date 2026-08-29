@@ -23,7 +23,7 @@ import type { AbilityState, GameSession, Reminder } from "@/lib/games/types";
 export const PROGRESS_BACKUP_VERSION = 1;
 
 export interface ProgressBackup {
-  app: "MemoryAssist";
+  app: "CareGiver";
   schemaVersion: number;
   kind: "progress";
   exportedAt: string;
@@ -38,7 +38,7 @@ export function buildProgressBackup(
   reminders: Reminder[],
 ): ProgressBackup {
   return {
-    app: "MemoryAssist",
+    app: "CareGiver",
     schemaVersion: PROGRESS_BACKUP_VERSION,
     kind: "progress",
     exportedAt: new Date().toISOString(),
@@ -90,12 +90,12 @@ export async function importProgressBackup(raw: unknown): Promise<ImportResult> 
   };
 
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    result.skipped.push("File is not a MemoryAssist progress backup.");
+    result.skipped.push("File is not a CareGiver progress backup.");
     return result;
   }
   const bundle = raw as Record<string, unknown>;
-  if (bundle.app !== "MemoryAssist" || bundle.kind !== "progress") {
-    result.skipped.push("This file is not a MemoryAssist progress backup.");
+  if ((bundle.app !== "CareGiver" && bundle.app !== "MemoryAssist") || bundle.kind !== "progress") {
+    result.skipped.push("This file is not a CareGiver progress backup.");
     return result;
   }
 

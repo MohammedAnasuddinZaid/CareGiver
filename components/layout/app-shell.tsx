@@ -74,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </a>
       <header className="sticky top-0 z-50 border-b border-line/70 bg-canvas/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 md:px-6">
-          <Link href="/" aria-label="MemoryAssist home" className="shrink-0 rounded-xl">
+          <Link href="/" aria-label="CareGiver home" className="shrink-0 rounded-xl">
             <Wordmark />
           </Link>
           <nav
