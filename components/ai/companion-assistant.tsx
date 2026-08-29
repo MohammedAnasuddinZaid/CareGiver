@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  useDragControls,
+  useMotionValue,
+} from "framer-motion";
 import { Heart, Send, Sparkles, X } from "lucide-react";
 import {
   respond,
@@ -20,6 +25,7 @@ import {
 } from "@/lib/ai/store";
 import { GAME_ROUTES, GAME_TITLES } from "@/components/games/game-meta";
 import type { GameId } from "@/lib/games/types";
+import { loadDragPos, saveDragPos } from "@/lib/ui/drag-pos";
 
 interface Msg {
   id: number;
@@ -108,13 +114,33 @@ export function CompanionAssistant() {
 
   const last = messages[messages.length - 1];
 
+  // Draggable launcher — park it anywhere; position is remembered on-device.
+  const dragControls = useDragControls();
+  const launchBounds = useRef<HTMLDivElement>(null);
+  const startPos = loadDragPos("ma.companion.pos.v1");
+  const lx = useMotionValue(startPos.x);
+  const ly = useMotionValue(startPos.y);
+
   return (
     <>
+      {/* Full-viewport drag boundary (does not capture pointer events). */}
+      <div ref={launchBounds} aria-hidden className="pointer-events-none fixed inset-0 z-[55]" />
+
       {/* Floating launcher */}
-      <button
+      <motion.button
         type="button"
+        drag
+        dragControls={dragControls}
+        dragListener={false}
+        dragMomentum={false}
+        dragConstraints={launchBounds}
+        dragElastic={0.04}
+        style={{ x: lx, y: ly }}
+        onDragEnd={() => saveDragPos("ma.companion.pos.v1", { x: lx.get(), y: ly.get() })}
+        onPointerDown={(e) => dragControls.start(e)}
         onClick={() => setOpen((o) => !o)}
-        aria-label={open ? "Close companion" : "Open AI companion"}
+        aria-label={open ? "Close companion" : "Open AI companion — drag to move"}
+        title="Drag to move · tap to open"
         className="fixed bottom-24 right-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-strong text-white shadow-lift transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
       >
         <motion.span
@@ -125,7 +151,7 @@ export function CompanionAssistant() {
           {open ? <X className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
         </motion.span>
         <span className="glow-pulse absolute inset-0 rounded-full" aria-hidden />
-      </button>
+      </motion.button>
 
       <AnimatePresence>
         {open && (
