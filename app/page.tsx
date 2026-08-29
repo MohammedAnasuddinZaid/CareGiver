@@ -14,9 +14,11 @@ import {
   Sparkles,
   UserPlus,
   WifiOff,
+  Download,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { MemoryScene } from "@/components/landing/memory-scene";
+import { openInstallPrompt } from "@/components/pwa/install-prompt";
 import { HeroVideo } from "@/components/landing/hero-video";
 import { ScienceSlides } from "@/components/landing/science-slides";
 
@@ -150,13 +152,21 @@ export default function LandingPage() {
             >
               Caregiver Dashboard
             </Link>
-            <Link
-              href="/play"
-              className="flex min-h-[52px] items-center justify-center rounded-full border-2 border-secondary-fixed px-8 py-3.5 text-button-text font-bold text-surface-bright transition-all duration-300 hover:scale-[1.02] hover:bg-secondary-fixed/15"
-            >
-              Mind Games
-            </Link>
-          </motion.div>
+              <Link
+                href="/play"
+                className="flex min-h-[52px] items-center justify-center rounded-full border-2 border-secondary-fixed px-8 py-3.5 text-button-text font-bold text-surface-bright transition-all duration-300 hover:scale-[1.02] hover:bg-secondary-fixed/15"
+              >
+                Mind Games
+              </Link>
+              <button
+                type="button"
+                onClick={() => openInstallPrompt()}
+                className="flex min-h-[52px] items-center justify-center gap-2 rounded-full border-2 border-white/40 px-8 py-3.5 text-button-text font-bold text-surface-bright transition-all duration-300 hover:scale-[1.02] hover:bg-white/10"
+              >
+                <Download className="h-5 w-5" aria-hidden />
+                Install app
+              </button>
+            </motion.div>
         </motion.div>
       </section>
 

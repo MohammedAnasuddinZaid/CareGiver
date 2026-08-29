@@ -18,7 +18,118 @@
   --ma-night: 12 17 22;
   --ma-night-card: 21 29 38;
 
+  /* Material-3 tokens (landing / footer / license) — light scheme */
+  --m3-primary: 0 92 85;
+  --m3-primary-container: 15 118 110;
+  --m3-on-primary: 255 255 255;
+  --m3-on-primary-container: 163 250 239;
+  --m3-primary-fixed: 156 242 232;
+  --m3-primary-fixed-dim: 128 213 203;
+  --m3-on-primary-fixed: 0 32 29;
+  --m3-on-primary-fixed-variant: 0 80 74;
+  --m3-inverse-primary: 128 213 203;
+  --m3-secondary: 43 105 84;
+  --m3-secondary-container: 173 237 211;
+  --m3-on-secondary: 255 255 255;
+  --m3-on-secondary-container: 48 109 88;
+  --m3-secondary-fixed: 176 240 214;
+  --m3-secondary-fixed-dim: 149 211 186;
+  --m3-on-secondary-fixed: 0 33 23;
+  --m3-on-secondary-fixed-variant: 11 81 61;
+  --m3-tertiary: 125 66 0;
+  --m3-tertiary-container: 161 86 0;
+  --m3-on-tertiary: 255 255 255;
+  --m3-on-tertiary-container: 255 230 213;
+  --m3-tertiary-fixed: 255 220 195;
+  --m3-tertiary-fixed-dim: 255 183 125;
+  --m3-on-tertiary-fixed: 47 21 0;
+  --m3-on-tertiary-fixed-variant: 110 57 0;
+  --m3-surface-bright: 252 249 244;
+  --m3-surface-dim: 220 218 213;
+  --m3-surface-variant: 229 226 221;
+  --m3-surface-container: 240 237 233;
+  --m3-surface-container-low: 246 243 238;
+  --m3-surface-container-lowest: 255 255 255;
+  --m3-surface-container-high: 235 232 227;
+  --m3-surface-container-highest: 229 226 221;
+  --m3-surface-tint: 0 106 99;
+  --m3-on-surface: 28 28 25;
+  --m3-on-surface-variant: 62 73 71;
+  --m3-inverse-surface: 49 48 45;
+  --m3-inverse-on-surface: 243 240 235;
+  --m3-on-background: 28 28 25;
+  --m3-outline: 110 121 119;
+  --m3-outline-variant: 189 201 198;
+  --m3-error: 186 26 26;
+  --m3-error-container: 255 218 214;
+  --m3-on-error: 255 255 255;
+  --m3-on-error-container: 147 0 10;
+
   --identity-scale: 1;
+}
+
+/* ---- Dark theme ---- */
+html.dark {
+  --ma-bg: 11 18 21;
+  --ma-surface: 18 28 31;
+  --ma-surface-muted: 27 39 42;
+  --ma-ink: 233 237 236;
+  --ma-muted: 150 164 162;
+  --ma-line: 39 54 57;
+  --ma-accent: 77 208 196;
+  --ma-accent-strong: 94 234 212;
+  --ma-accent-soft: 16 56 53;
+  --ma-ok: 105 219 142;
+  --ma-warn: 251 191 110;
+  --ma-danger: 255 145 158;
+  --ma-night: 8 12 15;
+  --ma-night-card: 14 22 27;
+
+  --m3-primary: 77 208 196;
+  --m3-primary-container: 0 79 72;
+  --m3-on-primary: 0 32 29;
+  --m3-on-primary-container: 163 250 239;
+  --m3-primary-fixed: 156 242 232;
+  --m3-primary-fixed-dim: 128 213 203;
+  --m3-on-primary-fixed: 0 32 29;
+  --m3-on-primary-fixed-variant: 0 80 74;
+  --m3-inverse-primary: 128 213 203;
+  --m3-secondary: 149 211 186;
+  --m3-secondary-container: 31 81 64;
+  --m3-on-secondary: 0 33 23;
+  --m3-on-secondary-container: 191 242 218;
+  --m3-secondary-fixed: 176 240 214;
+  --m3-secondary-fixed-dim: 149 211 186;
+  --m3-on-secondary-fixed: 0 33 23;
+  --m3-on-secondary-fixed-variant: 11 81 61;
+  --m3-tertiary: 255 183 125;
+  --m3-tertiary-container: 110 57 0;
+  --m3-on-tertiary: 47 21 0;
+  --m3-on-tertiary-container: 255 220 195;
+  --m3-tertiary-fixed: 255 220 195;
+  --m3-tertiary-fixed-dim: 255 183 125;
+  --m3-on-tertiary-fixed: 47 21 0;
+  --m3-on-tertiary-fixed-variant: 110 57 0;
+  --m3-surface-bright: 43 63 60;
+  --m3-surface-dim: 12 26 24;
+  --m3-surface-variant: 62 73 71;
+  --m3-surface-container: 23 50 47;
+  --m3-surface-container-low: 19 40 38;
+  --m3-surface-container-lowest: 15 31 29;
+  --m3-surface-container-high: 29 59 56;
+  --m3-surface-container-highest: 40 63 60;
+  --m3-surface-tint: 77 208 196;
+  --m3-on-surface: 224 227 224;
+  --m3-on-surface-variant: 191 201 198;
+  --m3-inverse-surface: 224 227 224;
+  --m3-inverse-on-surface: 18 19 18;
+  --m3-on-background: 224 227 224;
+  --m3-outline: 90 106 103;
+  --m3-outline-variant: 62 73 71;
+  --m3-error: 255 180 171;
+  --m3-error-container: 147 0 10;
+  --m3-on-error: 105 0 5;
+  --m3-on-error-container: 255 218 214;
 }
 
 html.high-contrast {

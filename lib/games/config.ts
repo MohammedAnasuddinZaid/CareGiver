@@ -55,6 +55,21 @@ export const gamesConfig = {
     hintPenalty: 0.35,
   },
 
+  /**
+   * Player-chosen difficulty bands. Each seeds the adaptive staircase with a
+   * different starting offset (logits) relative to stored ability θ:
+   *   easy     → well below ability (lots of wins, confidence-building)
+   *   moderate → the calibrated default
+   *   hard     → above ability (stretch)
+   * The staircase still adapts within the session, so these are starting
+   * points, not fixed ceilings.
+   */
+  levels: {
+    easy: { startOffset: -1.1, itemsPerSession: 8, label: "Easy" },
+    moderate: { startOffset: -0.25, itemsPerSession: 10, label: "Moderate" },
+    hard: { startOffset: 0.6, itemsPerSession: 12, label: "Hard" },
+  },
+
   scheduler: {
     /** How many games make up one prescribed daily session. */
     gamesPerDay: 3,
@@ -152,4 +167,16 @@ const GAME_META_DOMAIN: Record<GameId, SkillDomain> = {
   stroop: "attention",
   trail: "attention",
   spatial: "spatial",
+  sequence: "working",
+  clock: "executive",
+  spot: "spatial",
+  wordrecall: "memory",
+  follow: "attention",
+  shadow: "spatial",
+  reaction: "attention",
+  wordbuilder: "executive",
+  category: "executive",
+  emotion: "working",
+  target: "attention",
+  order: "executive",
 };

@@ -8,14 +8,19 @@ import {
   AlertTriangle,
   BellRing,
   CalendarCheck2,
+  Heart,
   Info,
+  Lightbulb,
   LineChart,
+  ListChecks,
+  Printer,
 } from "lucide-react";
 import { DOMAIN_INFO } from "@/lib/games/config";
 import { SKILL_DOMAINS } from "@/lib/games/types";
-import type { AbilityState } from "@/lib/games/types";
+import type { AbilityState, GameSession } from "@/lib/games/types";
+import { GAME_ROUTES, GAME_TITLES } from "@/components/games/game-meta";
 import { thetaStandardError } from "@/lib/cognition/traits";
-import { getAbilities, getRecentSessions } from "@/lib/storage/progress";
+import { getAbilities, getRecentSessions, getAllSessions } from "@/lib/storage/progress";
 import { getRecentEvents } from "@/lib/storage/reminders";
 import {
   adherence,
@@ -24,6 +29,8 @@ import {
   type CareAlert,
   type DomainTrend,
 } from "@/lib/cognition/trends";
+import { buildCoachReport, type Insight } from "@/lib/cognition/insights";
+import { buildReportHtml, openReportForPrint } from "@/lib/cognition/report";
 import { useLocale } from "@/hooks/use-locale";
 
 /**
@@ -41,6 +48,7 @@ export default function AnalyticsPage() {
     Partial<Record<(typeof SKILL_DOMAINS)[number], number | null>>
   >({});
   const [stats, setStats] = useState({ sessions: 0, activeDays: 0 });
+  const [allSessions, setAllSessions] = useState<GameSession[]>([]);
   const [reminderStats, setReminderStats] = useState({
     fired: 0,
     done: 0,
@@ -51,9 +59,10 @@ export default function AnalyticsPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [a, sessions] = await Promise.all([
+      const [a, sessions, all] = await Promise.all([
         getAbilities(),
         getRecentSessions(30),
+        getAllSessions(),
       ]);
       const events = await getRecentEvents(14);
       if (cancelled) return;
@@ -101,6 +110,7 @@ export default function AnalyticsPage() {
         });
         setStandardErrors(ses);
         setReminderStats({ fired, done, missed });
+        setAllSessions(all);
         setLoaded(true);
       }
     })();
@@ -108,6 +118,20 @@ export default function AnalyticsPage() {
       cancelled = true;
     };
   }, []);
+
+  const coach = useMemo(
+    () => buildCoachReport(allSessions, abilities),
+    [allSessions, abilities],
+  );
+
+  const handleGenerateReport = (): void => {
+    const html = buildReportHtml({
+      coach,
+      sessions: allSessions,
+      generatedAt: new Date().toISOString(),
+    });
+    openReportForPrint(html);
+  };
 
   if (!loaded) {
     return (
@@ -119,16 +143,25 @@ export default function AnalyticsPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 pb-24 pt-8 md:pt-12">
-      <div className="flex items-center gap-4">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft">
-          <LineChart className="h-8 w-8 text-accent" />
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft">
+            <LineChart className="h-8 w-8 text-accent" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-ink">
+              {t("analyticsTitle")}
+            </h1>
+            <p className="text-base text-ink-soft">{t("analyticsSubtitle")}</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-ink">
-            {t("analyticsTitle")}
-          </h1>
-          <p className="text-base text-ink-soft">{t("analyticsSubtitle")}</p>
-        </div>
+        <button
+          onClick={handleGenerateReport}
+          className="btn-sheen inline-flex min-h-[48px] items-center gap-2 rounded-full bg-accent px-6 py-3 text-base font-bold text-white shadow-soft transition-all hover:bg-accent-strong active:scale-[0.98]"
+        >
+          <Printer className="h-5 w-5" />
+          Generate progress report
+        </button>
       </div>
 
       {/* Adherence strip */}
@@ -186,6 +219,26 @@ export default function AnalyticsPage() {
         )}
       </section>
 
+      {/* AI Coach */}
+      <section className="mt-10">
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-ink">
+          <Lightbulb className="h-5 w-5 text-accent" />
+          AI coach &amp; suggestions
+        </h2>
+        <p className="mb-4 rounded-2xl border border-line bg-surface-muted px-5 py-3 text-base font-medium text-ink-soft">
+          {coach.headline}
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {coach.insights.map((ins) => (
+            <InsightCard key={ins.id} insight={ins} />
+          ))}
+        </div>
+        <p className="mt-3 text-sm text-ink-soft">
+          Suggestions are generated on this device from the person&apos;s own activity —
+          they are supportive guidance, not a medical diagnosis.
+        </p>
+      </section>
+
       {/* Domain trends */}
       <section className="mt-10">
         <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-ink">
@@ -232,6 +285,52 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
       <p className="text-2xl font-extrabold tabular-nums text-ink">{value}</p>
       <p className="mt-0.5 text-sm font-medium text-ink-soft">{label}</p>
+    </div>
+  );
+}
+
+function InsightCard({ insight }: { insight: Insight }) {
+  const tone = insight.tone;
+  const Icon =
+    tone === "praise" ? Heart : tone === "warning" ? AlertTriangle : tone === "plan" ? ListChecks : Lightbulb;
+  const styles =
+    tone === "praise"
+      ? "border-ok/30 bg-ok/5"
+      : tone === "warning"
+        ? "border-danger/30 bg-danger/5"
+        : tone === "plan"
+          ? "border-accent/30 bg-accent-soft"
+          : "border-warn/30 bg-warn/5";
+  const iconColor =
+    tone === "praise"
+      ? "text-ok"
+      : tone === "warning"
+        ? "text-danger"
+        : tone === "plan"
+          ? "text-accent"
+          : "text-warn";
+  return (
+    <div className={`rounded-2xl border p-5 shadow-soft ${styles}`}>
+      <div className="flex items-start gap-3">
+        <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${iconColor}`} />
+        <div>
+          <p className="text-base font-bold text-ink">{insight.title}</p>
+          <p className="mt-1 text-sm leading-relaxed text-ink-soft">{insight.detail}</p>
+          {insight.gameIds && insight.gameIds.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {insight.gameIds.slice(0, 3).map((g) => (
+                <a
+                  key={g}
+                  href={`${GAME_ROUTES[g]}?level=${insight.level ?? "moderate"}`}
+                  className="rounded-full bg-surface px-3 py-1.5 text-sm font-semibold text-accent shadow-soft transition-colors hover:bg-accent hover:text-white"
+                >
+                  {GAME_TITLES[g]}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

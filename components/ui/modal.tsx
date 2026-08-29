@@ -12,12 +12,14 @@ export function Modal({
   title,
   children,
   footer,
+  size = "default",
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  size?: "default" | "lg" | "xl";
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -81,9 +83,10 @@ export function Modal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ type: "spring", stiffness: 340, damping: 28 }}
-            className={clsx(
-              "relative w-full max-w-lg rounded-3xl bg-surface border border-line shadow-lift p-6 md:p-8 max-h-[88vh] overflow-y-auto ma-scroll",
-            )}
+             className={clsx(
+               "relative w-full rounded-3xl bg-surface border border-line shadow-lift p-6 md:p-8 max-h-[88vh] overflow-y-auto ma-scroll",
+               size === "xl" ? "max-w-4xl" : size === "lg" ? "max-w-2xl" : "max-w-lg",
+             )}
           >
             <div className="flex items-start justify-between gap-4 mb-4">
               <h2 className="text-2xl font-bold tracking-tight">{title}</h2>

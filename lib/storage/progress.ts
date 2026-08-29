@@ -168,6 +168,11 @@ export function sanitizeAbility(raw: unknown): AbilityState | null {
   }
   return {
     domain: r.domain as SkillDomain,
+    abilityKey:
+      typeof r.abilityKey === "string" && r.abilityKey.length > 0
+        ? r.abilityKey.slice(0, 80)
+        : `local::${r.domain}`,
+    playerId: typeof r.playerId === "string" ? r.playerId.slice(0, 80) : "local",
     theta: typeof r.theta === "number" && Number.isFinite(r.theta) ? r.theta : -0.4,
     trialsSeen:
       typeof r.trialsSeen === "number" && Number.isInteger(r.trialsSeen) && r.trialsSeen >= 0

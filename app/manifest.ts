@@ -5,11 +5,15 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "MemoryAssist",
     short_name: "MemoryAssist",
     description:
-      "A privacy-first assistive app that helps people with memory impairment recognize familiar people — entirely on-device.",
+      "A privacy-first assistive app that helps people with memory impairment recognize familiar people and stay mentally active — entirely on-device.",
     start_url: "/",
+    scope: "/",
     display: "standalone",
+    display_override: ["standalone", "minimal-ui"],
+    orientation: "portrait",
     background_color: "#fafaf9",
     theme_color: "#0f766e",
+    categories: ["health", "lifestyle", "medical"],
     icons: [
       {
         src: "/icons/icon-192.png",
@@ -26,6 +30,23 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
+      },
+    ],
+    shortcuts: [
+      {
+        name: "Mind Games",
+        url: "/play",
+        description: "Play today's gentle brain games",
+      },
+      {
+        name: "Companion Mode",
+        url: "/recognition",
+        description: "Recognize familiar faces",
+      },
+      {
+        name: "Progress",
+        url: "/analytics",
+        description: "See how skills are changing",
       },
     ],
   };

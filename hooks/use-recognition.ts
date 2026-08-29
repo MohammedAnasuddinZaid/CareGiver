@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 import { getPeople } from "@/lib/storage/profiles";
 import type { PersonProfile } from "@/lib/types/person";
 import { recognitionConfig, thresholdFor } from "@/lib/recognition/config";
@@ -67,6 +69,10 @@ export function useRecognition({ active }: RecognitionArgs) {
   const trackerRef = useRef<BoxTracker>(new BoxTracker(recognitionConfig.tracker));
   const descriptorMemoryRef = useRef<DescriptorMemory>(new DescriptorMemory());
   const governorRef = useRef<PerfGovernor>(new PerfGovernor(recognitionConfig.performance));
+  // Adaptive exposure for dim/backlit rooms (cosmetic preview + baked into
+  // the detection buffer so the model sees a lift too).
+  const exposureRef = useRef(1);
+  const sampleCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const speechRef = useRef<SpeechGuide>(new SpeechGuide());
   const busyRef = useRef(false);
   const stopRef = useRef(false);
@@ -191,7 +197,7 @@ export function useRecognition({ active }: RecognitionArgs) {
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      const s = Math.max(15, Math.min(26, Math.round(vw / 46)));
+      const s = Math.max(18, Math.min(34, Math.round(vw / 38)));
       const padX = Math.round(s * 0.6);
       const padY = Math.round(s * 0.45);
       const radius = Math.round(s * 0.55);
@@ -290,8 +296,46 @@ export function useRecognition({ active }: RecognitionArgs) {
         const faceapi = await ensureModelsLoaded();
         if (stopRef.current) return;
 
+        // Adaptive exposure: estimate frame brightness, lift dim/backlit
+        // frames, brighten the preview, and hand the same lift to detection
+        // (toEnhancedInput bakes it into the pixels — CSS filters alone never
+        // reach the model).
+        let enhance:
+          | { brightness: number; contrast: number; saturate: number; grayscale: boolean; maxWidth: number }
+          | undefined;
+        if (!sampleCanvasRef.current) {
+          const sc = document.createElement("canvas");
+          sc.width = 80;
+          sc.height = 60;
+          sampleCanvasRef.current = sc;
+        }
+        const sctx = sampleCanvasRef.current.getContext("2d", { willReadFrequently: true });
+        if (sctx) {
+          sctx.drawImage(video, 0, 0, 80, 60);
+          const sd = sctx.getImageData(0, 0, 80, 60).data;
+          let sum = 0;
+          for (let i = 0; i < sd.length; i += 4) sum += (sd[i] + sd[i + 1] + sd[i + 2]) / 3;
+          const avg = sum / (sd.length / 4) / 255;
+          const desired = clamp(0.5 / (avg || 0.001), 0.8, 1.6);
+          exposureRef.current =
+            exposureRef.current === 1 ? desired : 0.82 * exposureRef.current + 0.18 * desired;
+          video.style.filter = `brightness(${exposureRef.current.toFixed(3)}) contrast(1.08) saturate(1.06)`;
+          enhance = {
+            brightness: exposureRef.current,
+            contrast: 1.08,
+            saturate: 1.06,
+            grayscale: true,
+            maxWidth: 640,
+          };
+        }
+
         const t0 = performance.now();
-        const faces = await detectFacesInVideo(faceapi, video, governorRef.current.inputSize);
+        const faces = await detectFacesInVideo(
+          faceapi,
+          video,
+          governorRef.current.inputSize,
+          enhance,
+        );
         // Inference can outlive an unmount (user left Companion Mode).
         // Stop BEFORE touching React state or speaking — otherwise a name
         // is announced into empty air and setState fires on dead components.
@@ -462,6 +506,7 @@ export function useRecognition({ active }: RecognitionArgs) {
       stopRef.current = true;
       if (timerRef.current) clearTimeout(timerRef.current);
       document.removeEventListener("visibilitychange", onVisibility);
+      if (videoRef.current) videoRef.current.style.filter = "";
       stabilizerRef.current.reset();
       trackerRef.current.reset();
       descriptorMemoryRef.current.reset();

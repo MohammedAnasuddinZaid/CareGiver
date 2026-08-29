@@ -6,10 +6,20 @@ import type { Sensitivity } from "@/lib/settings/settings";
  * numbers scattered through components.
  */
 export const recognitionConfig = {
-  /** TinyFaceDetector base input resolution (multiple of 32). */
-  detectionInputSize: 320,
-  /** Minimum detector confidence for a face box to be considered. */
-  detectionScoreThreshold: 0.5,
+  /**
+   * TinyFaceDetector base input resolution (multiple of 32). Higher = more
+   * facial detail → sharper landmarks → better-aligned descriptors → more
+   * reliable matching. 512 is the top tier; the performance governor demotes
+   * this on slow devices, so capable hardware gets the detail win and weak
+   * devices stay responsive.
+   */
+  detectionInputSize: 512,
+  /**
+   * Minimum detector confidence for a face box to be considered. 0.45 is a
+   * touch more permissive than the 0.5 default so a face registers quickly
+   * in bright/dim rooms without inviting false positives in practice.
+   */
+  detectionScoreThreshold: 0.45,
 
   /**
    * Euclidean distance threshold on L2-normalized 128-D descriptors.
@@ -19,9 +29,9 @@ export const recognitionConfig = {
    * unfamiliar person can remain unknown rather than be mislabeled.
    */
   thresholds: {
-    cautious: 0.5,
-    balanced: 0.55,
-    permissive: 0.62,
+    cautious: 0.55,
+    balanced: 0.6,
+    permissive: 0.68,
   } satisfies Record<Sensitivity, number>,
   defaultSensitivity: "balanced" as Sensitivity,
 
@@ -37,7 +47,7 @@ export const recognitionConfig = {
   matching: {
     ambiguityMargin: 0.07,
     uncertaintyBandLow: 0.42,
-    uncertaintyBandHigh: 0.62,
+    uncertaintyBandHigh: 0.66,
     confidenceSlope: 12,
   },
 
@@ -63,7 +73,7 @@ export const recognitionConfig = {
    */
   temporal: {
     tauMs: 900,
-    enterWeight: 1.35,
+    enterWeight: 1.1,
     exitWeight: 0.55,
     maxWeight: 4.0,
     pruneAfterMs: 4500,
@@ -71,16 +81,24 @@ export const recognitionConfig = {
     identityHoldMs: 3000,
   },
 
-  /** How often recognition runs (ms). ~4 inferences/sec keeps laptops cool. */
-  sampleIntervalMs: 260,
+  /**
+   * How often recognition runs (ms). The scheduler is period-based (inference
+   * + wait = one cycle) and never overlaps itself, so this is a FLOOR on the
+   * post-inference wait — the loop re-ticks as soon as the previous inference
+   * finishes. Lower = higher max throughput on capable hardware; the
+   * performance governor keeps slow devices smooth by dropping resolution.
+   * A confident match still locks in ~2 frames via the temporal stabilizer.
+   */
+  sampleIntervalMs: 120,
 
   /**
    * Adaptive compute governor: an EWMA of real inference latency promotes or
    * demotes the detector resolution tier with a cooldown, so slow devices
-   * stay responsive and fast ones get accuracy.
+   * stay responsive and fast ones get accuracy. Start at the high tier for
+   * best detection; demote automatically if latency climbs.
    */
   performance: {
-    inputSizes: [320, 256, 224],
+    inputSizes: [512, 416, 320, 256],
     ewmaAlpha: 0.2,
     demoteAboveMs: 420,
     promoteBelowMs: 160,
@@ -120,8 +138,12 @@ export const recognitionConfig = {
 
   /** Enrollment limits. */
   maxEnrollmentPhotos: 4,
-  /** Reject enrollment faces smaller than this fraction of image height. */
-  minEnrollmentFaceRatio: 0.12,
+  /**
+   * Reject enrollment faces smaller than this fraction of image height.
+   * 0.15 avoids enrolling low-resolution crops whose descriptors are noisy,
+   * which keeps the match distance clean and recognition accurate.
+   */
+  minEnrollmentFaceRatio: 0.15,
 } as const;
 
 export function thresholdFor(sensitivity: Sensitivity): number {

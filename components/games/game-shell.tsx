@@ -19,6 +19,8 @@ export interface GameChromeProps {
   current: number;
   total: number;
   onQuit: () => void;
+  /** Optional small label shown next to the title (e.g. difficulty band). */
+  badge?: string;
   children: React.ReactNode;
 }
 
@@ -28,13 +30,21 @@ export function GameChrome({
   current,
   total,
   onQuit,
+  badge,
   children,
 }: GameChromeProps) {
   const { n } = useLocale();
   return (
     <div className="mx-auto flex min-h-[80vh] w-full max-w-3xl flex-col px-4 pb-16 pt-6 md:pt-10 slide-up-enter">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-shimmer text-2xl font-bold tracking-tight">{title}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-shimmer text-2xl font-bold tracking-tight">{title}</h1>
+          {badge && (
+            <span className="rounded-full bg-accent-soft px-3 py-1 text-sm font-bold uppercase tracking-wide text-accent">
+              {badge}
+            </span>
+          )}
+        </div>
         <button
           onClick={onQuit}
           aria-label="Leave game"

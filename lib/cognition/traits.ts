@@ -27,6 +27,8 @@ export function predictedSuccess(theta: number, b: number): number {
 export function newAbilityState(domain: SkillDomain, nowISO: string): AbilityState {
   return {
     domain,
+    abilityKey: `local::${domain}`,
+    playerId: "local",
     theta: gamesConfig.irt.initialTheta,
     trialsSeen: 0,
     ewmaRtMs: 0,

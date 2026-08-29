@@ -42,6 +42,10 @@ const settingsBootstrap = `
   r.classList.toggle('large-text', !!s.largeText);
   r.classList.toggle('high-contrast', !!s.highContrast);
   r.classList.toggle('reduce-motion', typeof s.reduceMotion==='boolean' ? !!s.reduceMotion : mq('(prefers-reduced-motion: reduce)'));
+  var theme = s.theme === 'light' || s.theme === 'dark' || s.theme === 'system' ? s.theme : 'system';
+  var dark = theme === 'dark' || (theme === 'system' && mq('(prefers-color-scheme: dark)'));
+  r.classList.toggle('dark', !!dark);
+  r.style.colorScheme = dark ? 'dark' : 'light';
 }catch(e){}})();
 `;
 

@@ -25,8 +25,17 @@ import {
   EXPORT_SCHEMA_VERSION,
   validateAndParseImport,
 } from "@/lib/storage/data-transfer";
-import { clearAbilityAndProgress } from "@/lib/storage/progress";
-import { clearReminders } from "@/lib/storage/reminders";
+import {
+  clearAbilityAndProgress,
+  getAbilities,
+  getAllSessions,
+} from "@/lib/storage/progress";
+import { clearReminders, getReminders } from "@/lib/storage/reminders";
+import {
+  buildProgressBackup,
+  downloadBackup,
+  importProgressBackup,
+} from "@/lib/storage/export";
 import type { PersonProfile } from "@/lib/types/person";
 import { LOCALES, LOCALE_META } from "@/lib/i18n/locales";
 
@@ -36,6 +45,8 @@ export default function SettingsPage() {
   const [confirmWipe, setConfirmWipe] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingProgress, setExportingProgress] = useState(false);
+  const [importingProgress, setImportingProgress] = useState(false);
 
   async function handleExport() {
     setExporting(true);
@@ -136,6 +147,55 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleExportProgress() {
+    setExportingProgress(true);
+    try {
+      const [abilities, sessions, reminders] = await Promise.all([
+        getAbilities(),
+        getAllSessions(),
+        getReminders(),
+      ]);
+      if (sessions.length === 0 && abilities.length === 0 && reminders.length === 0) {
+        toast("No activity to export yet — play a game first.", "info");
+        return;
+      }
+      downloadBackup(buildProgressBackup(abilities, sessions, reminders));
+      toast("Progress backup saved. Keep this file private.");
+    } catch {
+      toast("Could not create the progress backup.", "error");
+    } finally {
+      setExportingProgress(false);
+    }
+  }
+
+  async function handleImportProgressFile(file: File) {
+    setImportingProgress(true);
+    try {
+      const text = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        toast("That file isn't valid JSON.", "error");
+        return;
+      }
+      const result = await importProgressBackup(parsed);
+      if (result.ok) {
+        toast(
+          `Restored ${result.sessions} sessions, ${result.abilities} skills and ${result.reminders} reminders.`,
+        );
+      } else if (result.skipped.length) {
+        toast(result.skipped[0], "error");
+      } else {
+        toast("Nothing could be restored from that file.", "error");
+      }
+    } catch {
+      toast("Import failed unexpectedly.", "error");
+    } finally {
+      setImportingProgress(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 md:px-6 md:py-14">
       <header className="animate-fade-up">
@@ -206,6 +266,18 @@ export default function SettingsPage() {
         </Card>
       </section>
 
+      <section aria-labelledby="games-heading" className="mt-12">
+        <SectionTitle title="Games" subtitle="Companions and coaching while you play." />
+        <Card className="divide-y divide-line px-6 py-2 md:px-8">
+          <Switch
+            checked={settings.gameCoach}
+            onChange={(v) => update({ gameCoach: v })}
+            label="In-game coach"
+            description="A small, dismissible tip bubble that encourages you and offers hints. You can also hide it any time during a game."
+          />
+        </Card>
+      </section>
+
       <section aria-labelledby="language-heading" className="mt-12">
         <SectionTitle
           title="Language"
@@ -242,6 +314,20 @@ export default function SettingsPage() {
         <SectionTitle title="Accessibility" />
         <span id="accessibility-heading" className="sr-only">Accessibility settings</span>
         <Card className="divide-y divide-line px-6 py-2 md:px-8">
+          <div className="py-5">
+            <Field label="Appearance">
+              <SegmentedControl
+                label="Appearance"
+                value={settings.theme}
+                onChange={(v) => update({ theme: v })}
+                options={[
+                  { value: "light", label: "Light" },
+                  { value: "dark", label: "Dark" },
+                  { value: "system", label: "Auto" },
+                ]}
+              />
+            </Field>
+          </div>
           <Switch
             checked={settings.largeText}
             onChange={(v) => update({ largeText: v })}
@@ -305,6 +391,41 @@ export default function SettingsPage() {
             <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" aria-hidden />
             Import validates every record and skips malformed entries safely.
           </p>
+
+          <div className="rounded-2xl border border-line bg-surface-muted/60 p-5">
+            <p className="text-lg font-semibold text-ink">Activity &amp; progress</p>
+            <p className="mt-1 text-base text-ink-soft">
+              Export game results, skill levels and reminders as a private file — or
+              restore them on another device. All on this device; nothing is uploaded.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button
+                variant="secondary"
+                size="lg"
+                onClick={() => void handleExportProgress()}
+                disabled={exportingProgress}
+              >
+                <Download className="h-5 w-5" aria-hidden />
+                {exportingProgress ? "Preparing…" : "Export progress"}
+              </Button>
+              <label className="inline-flex min-h-[52px] cursor-pointer items-center justify-center gap-2 rounded-full border border-line bg-surface px-7 py-3.5 text-lg font-semibold shadow-soft transition-all hover:border-accent hover:text-accent disabled:opacity-50">
+                <Upload className="h-5 w-5" aria-hidden />
+                {importingProgress ? "Restoring…" : "Import progress"}
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  className="sr-only"
+                  disabled={importingProgress}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f) void handleImportProgressFile(f);
+                  }}
+                />
+              </label>
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-red-100 bg-red-50/60 p-5">
             <p className="text-lg font-semibold text-danger">Delete everything on this device</p>
             <Button variant="danger" className="mt-4" onClick={() => setConfirmWipe(true)}>

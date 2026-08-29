@@ -1,6 +1,7 @@
 export type SpeechRate = "slow" | "normal" | "fast";
 export type Sensitivity = "cautious" | "balanced" | "permissive";
 export type LocaleSetting = string;
+export type ThemeSetting = "light" | "dark" | "system";
 
 export interface AppSettings {
   recognitionEnabled: boolean;
@@ -14,6 +15,10 @@ export interface AppSettings {
   developerMode: boolean;
   /** UI + voice language for games and reminders ("en" default). */
   locale: LocaleSetting;
+  /** "light" | "dark" | "system" — theme preference. */
+  theme: ThemeSetting;
+  /** In-game motivational coach bubble. Users can also dismiss it per session. */
+  gameCoach: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -27,6 +32,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sensitivity: "balanced",
   developerMode: false,
   locale: "en",
+  theme: "light",
+  gameCoach: true,
 };
 
 const KEY = "ma.settings.v1";
@@ -51,6 +58,10 @@ function sanitize(input: unknown): AppSettings {
   if (typeof raw.locale === "string" && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(raw.locale)) {
     merged.locale = raw.locale.slice(0, 10);
   }
+  if (raw.theme === "light" || raw.theme === "dark" || raw.theme === "system") {
+    merged.theme = raw.theme;
+  }
+  if (typeof raw.gameCoach === "boolean") merged.gameCoach = raw.gameCoach;
   return merged;
 }
 
@@ -86,4 +97,17 @@ export function applySettingsToDocument(settings: AppSettings): void {
   root.classList.toggle("large-text", settings.largeText);
   root.classList.toggle("high-contrast", settings.highContrast);
   root.classList.toggle("reduce-motion", settings.reduceMotion);
+  applyTheme(settings.theme);
+}
+
+/** Resolves a theme preference and toggles the `dark` class on <html>. */
+export function applyTheme(theme: ThemeSetting): void {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  const prefersDark =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = theme === "dark" || (theme === "system" && prefersDark);
+  root.classList.toggle("dark", dark);
+  root.style.colorScheme = dark ? "dark" : "light";
 }

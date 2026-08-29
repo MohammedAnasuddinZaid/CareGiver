@@ -35,9 +35,26 @@ export const GAME_IDS = [
   "stroop",
   "trail",
   "melody",
+  "sequence",
+  "clock",
+  "spot",
+  "wordrecall",
+  "follow",
+  "shadow",
+  "reaction",
+  "wordbuilder",
+  "category",
+  "emotion",
+  "target",
+  "order",
 ] as const;
 
 export type GameId = (typeof GAME_IDS)[number];
+
+/** Player-chosen difficulty band — seeds the adaptive staircase. */
+export type GameLevel = "easy" | "moderate" | "hard";
+
+export const GAME_LEVELS: readonly GameLevel[] = ["easy", "moderate", "hard"];
 
 export interface GameMeta {
   id: GameId;
@@ -88,6 +105,80 @@ export const GAME_META: Record<GameId, GameMeta> = {
   },
   bazaar: { id: "bazaar", domain: "executive", secondaryDomains: ["working"], category: "think" },
   spatial: { id: "spatial", domain: "spatial", secondaryDomains: ["memory"], category: "find" },
+  // New games (see each component's header for the evidence base):
+  sequence: {
+    id: "sequence",
+    domain: "working",
+    secondaryDomains: ["memory"],
+    category: "remember",
+  },
+  clock: {
+    id: "clock",
+    domain: "executive",
+    secondaryDomains: ["spatial"],
+    category: "think",
+  },
+  spot: {
+    id: "spot",
+    domain: "spatial",
+    secondaryDomains: ["attention"],
+    category: "find",
+  },
+  wordrecall: {
+    id: "wordrecall",
+    domain: "memory",
+    secondaryDomains: ["working"],
+    category: "remember",
+  },
+  follow: {
+    id: "follow",
+    domain: "attention",
+    secondaryDomains: ["working"],
+    category: "focus",
+  },
+  shadow: {
+    id: "shadow",
+    domain: "spatial",
+    secondaryDomains: ["attention"],
+    category: "find",
+  },
+  // --- New games (see each component's header for the evidence base) ---
+  reaction: {
+    id: "reaction",
+    domain: "attention",
+    secondaryDomains: ["executive"],
+    category: "focus",
+  },
+  wordbuilder: {
+    id: "wordbuilder",
+    domain: "executive",
+    secondaryDomains: ["working"],
+    category: "think",
+  },
+  category: {
+    id: "category",
+    domain: "executive",
+    secondaryDomains: ["attention"],
+    category: "think",
+  },
+  emotion: {
+    id: "emotion",
+    domain: "working",
+    secondaryDomains: ["attention"],
+    category: "remember",
+  },
+  target: {
+    id: "target",
+    domain: "attention",
+    secondaryDomains: ["spatial"],
+    category: "focus",
+  },
+  order: {
+    id: "order",
+    domain: "executive",
+    secondaryDomains: ["memory"],
+    category: "think",
+  },
 };
 
 /** One answered item inside a game session. */
@@ -122,8 +213,26 @@ export interface GameSession {
   endedEarly: boolean;
 }
 
+/**
+ * A "player" is the person actually doing the exercises — the one whose
+ * progress we track. Identity is generated and stored entirely on-device
+ * (a random id in IndexedDB). We deliberately do NOT use the network IP
+ * address: IPs leak across networks, are shared on some routers, and expose
+ * location. A local profile id is private, stable and impossible to exfiltrate.
+ */
+export interface PlayerProfile {
+  id: string;
+  name: string;
+  /** Optional accent color (hsl triple) for the avatar chip. */
+  color?: string;
+  createdAt: string;
+}
+
 /** Persisted ability state for one cognitive domain. */
 export interface AbilityState {
+  /** Composite key `${playerId}::${domain}` — unique per player+domain. */
+  abilityKey: string;
+  playerId: string;
   domain: SkillDomain;
   /** Current IRT-style ability estimate (logit scale). */
   theta: number;

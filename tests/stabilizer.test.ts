@@ -98,13 +98,13 @@ describe("IdentityStabilizer — decayed evidence + hysteresis", () => {
     let ts = 1000;
     for (let i = 0; i < 3; i++) {
       strong.observe({ personId: "mom", confidence: 0.95 }, ts);
-      weak.observe({ personId: "mom", confidence: 0.35 }, ts);
+      weak.observe({ personId: "mom", confidence: 0.30 }, ts);
       ts += STEP;
     }
     const rs = strong.observe({ personId: "mom", confidence: 0.95 }, ts);
     // Strong evidence should already have crossed enterWeight or be very close,
-    // weak evidence must not be stable yet.
-    const rw = weak.observe({ personId: "mom", confidence: 0.35 }, ts);
+    // weak evidence (0.30) must not be stable yet with enterWeight = 1.1.
+    const rw = weak.observe({ personId: "mom", confidence: 0.30 }, ts);
     expect(rs.kind === "recognized" || rs.kind === "identifying").toBe(true);
     expect(rw.kind).toBe("identifying");
   });

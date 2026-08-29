@@ -51,6 +51,16 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     applySettingsToDocument(settings);
   }, [settings, ready]);
 
+  // When the preference is "system", follow live OS changes.
+  useEffect(() => {
+    if (!ready || settings.theme !== "system") return;
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (): void => applySettingsToDocument(settings);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, [ready, settings]);
+
   const value = useMemo(() => ({ settings, update, ready }), [settings, update, ready]);
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

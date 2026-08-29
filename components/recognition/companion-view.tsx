@@ -82,9 +82,9 @@ export function CompanionView() {
   }, []);
 
   return (
-    <div className="relative mx-auto flex h-[100dvh] max-w-4xl flex-col px-4 pb-6 pt-4">
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-black text-white">
       {/* Top bar */}
-      <header className="flex items-center justify-between gap-3 text-white">
+      <header className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent p-4 text-white">
         <Link
           href="/"
           className="inline-flex min-h-[48px] items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-base font-semibold backdrop-blur transition-colors hover:bg-white/20"
@@ -110,8 +110,8 @@ export function CompanionView() {
         </button>
       </header>
 
-      {/* Camera stage */}
-      <div className="relative mt-4 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-[2rem] border border-white/10 bg-black shadow-lift">
+      {/* Camera stage — fills the whole screen */}
+      <div className="absolute inset-0 bg-black">
         <video
           ref={videoRef}
           className={clsx(
@@ -122,10 +122,6 @@ export function CompanionView() {
           muted
           autoPlay
         />
-        {/* object-cover on BOTH layers guarantees box coordinates map 1:1
-            even when the stage's aspect ratio differs from the camera's —
-            without it, portrait screens stretched the overlay and misaligned
-            every bracket and label. */}
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
 
         {/* Scanning sweep while identifying */}
@@ -134,7 +130,7 @@ export function CompanionView() {
         )}
 
         {/* Privacy chip */}
-        <span className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-black/45 px-3.5 py-1.5 text-sm font-medium text-teal-200 backdrop-blur">
+        <span className="absolute left-4 top-20 inline-flex items-center gap-2 rounded-full bg-black/45 px-3.5 py-1.5 text-sm font-medium text-teal-200 backdrop-blur">
           <Lock className="h-3.5 w-3.5" aria-hidden />
           Processing stays on this device
         </span>
@@ -146,17 +142,19 @@ export function CompanionView() {
         )}
       </div>
 
-      {/* Identity area */}
-      <div className="mt-5 flex min-h-[190px] items-center justify-center rounded-[2rem] border border-white/10 bg-night-card/90 p-6 text-center backdrop-blur md:min-h-[210px]">
-        {cameraStatus === "ready" && modelStatus === "ready" ? (
-          <IdentityArea kind={stableKind} personName={person?.name ?? null} personRelationship={person?.relationship ?? null} description={person?.description ?? null} />
-        ) : (
-          <p className="text-xl font-medium text-slate-300">Preparing your camera…</p>
-        )}
+      {/* Identity area — large, floating over the camera */}
+      <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center bg-gradient-to-t from-black/85 via-black/45 to-transparent px-4 pb-12 pt-20">
+        <div className="w-full max-w-3xl">
+          {cameraStatus === "ready" && modelStatus === "ready" ? (
+            <IdentityArea kind={stableKind} personName={person?.name ?? null} personRelationship={person?.relationship ?? null} description={person?.description ?? null} />
+          ) : (
+            <p className="text-center text-2xl font-medium text-slate-200">Preparing your camera…</p>
+          )}
+        </div>
       </div>
 
       {/* Footer hints */}
-      <footer className="mt-3 flex items-center justify-between text-sm text-slate-400">
+      <footer className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between px-4 pb-3 text-xs text-slate-300/80">
         <span>
           {peopleCount === 0
             ? "No familiar people enrolled yet — ask your caregiver to add someone."
@@ -199,35 +197,35 @@ function IdentityArea({
         className="text-center"
       >
         {kind === "recognized" && personName ? (
-          <>
-            <p className="identity-name text-gradient font-bold leading-tight tracking-tight">{personName}</p>
-            <p className="identity-relation mt-1 font-semibold text-teal-300">{relationshipLine(personRelationship)}</p>
-            {description && (
-              <p className="identity-description mt-3 leading-snug text-slate-300">“{description}”</p>
-            )}
-            <motion.p
-              initial={{ scale: 0.85, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.18, type: "spring", stiffness: 300, damping: 20 }}
-              className="ping-ring mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-4 py-1.5 text-base font-semibold text-emerald-300"
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-              Recognized
-            </motion.p>
-          </>
-        ) : kind === "unknown" ? (
-          <>
-            <p className="text-2xl font-semibold leading-relaxed text-slate-200 md:text-3xl">
-              I don’t recognize this person yet.
-            </p>
-            <p className="mt-2 text-lg text-slate-400">A caregiver can add them to your trusted circle.</p>
-          </>
-        ) : (
-          <>
-            <p className="text-2xl font-semibold text-slate-200 md:text-3xl">Looking for someone familiar…</p>
-            <p className="mt-2 text-lg text-slate-400">Move into view when you’re ready.</p>
-          </>
-        )}
+            <>
+              <p className="identity-name text-gradient font-bold leading-tight tracking-tight text-4xl md:text-5xl">{personName}</p>
+              <p className="identity-relation mt-2 font-semibold text-teal-300 text-xl md:text-2xl">{relationshipLine(personRelationship)}</p>
+              {description && (
+                <p className="identity-description mt-3 leading-snug text-slate-200 text-lg">“{description}”</p>
+              )}
+              <motion.p
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.18, type: "spring", stiffness: 300, damping: 20 }}
+                className="ping-ring mt-5 inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-5 py-2 text-lg font-semibold text-emerald-300"
+              >
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" aria-hidden />
+                Recognized
+              </motion.p>
+            </>
+          ) : kind === "unknown" ? (
+            <>
+              <p className="text-3xl font-semibold leading-relaxed text-slate-200 md:text-4xl">
+                I don’t recognize this person yet.
+              </p>
+              <p className="mt-2 text-lg text-slate-400">A caregiver can add them to your trusted circle.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-3xl font-semibold text-slate-200 md:text-4xl">Looking for someone familiar…</p>
+              <p className="mt-2 text-lg text-slate-400">Move into view when you’re ready.</p>
+            </>
+          )}
       </motion.div>
     </AnimatePresence>
   );

@@ -25,12 +25,14 @@ import {
   saveAbility,
   saveSession,
 } from "@/lib/storage/progress";
+import type { GameLevel } from "@/lib/games/types";
 
 export type GameStatus = "loading" | "active" | "summary";
 
-export interface TrialOutcome {
-  correct: boolean;
-  hintsUsed?: number;
+interface UseGameSessionArgs {
+  game: GameId;
+  /** Player-chosen difficulty band — seeds the adaptive staircase. */
+  level?: GameLevel;
 }
 
 export interface SessionSummary {
@@ -40,6 +42,13 @@ export interface SessionSummary {
   endedEarly: boolean;
   thetaBefore: number | null;
   thetaAfter: number | null;
+}
+
+/** Outcome a game reports for a single answered item. */
+export interface TrialOutcome {
+  correct: boolean;
+  /** Hints/corrections used before success (0 = clean). */
+  hintsUsed?: number;
 }
 
 interface UseGameSessionArgs {
@@ -55,8 +64,9 @@ interface UseGameSessionArgs {
  * fatigue heuristic fires. Games only decide *what* to show and report
  * outcomes through completeTrial().
  */
-export function useGameSession({ game }: UseGameSessionArgs) {
+export function useGameSession({ game, level = "moderate" }: UseGameSessionArgs) {
   const domain: SkillDomain = GAME_META[game].domain;
+  const levelConfig = gamesConfig.levels[level];
 
   const [status, setStatus] = useState<GameStatus>("loading");
   const [theta, setTheta] = useState(0);
@@ -98,6 +108,11 @@ export function useGameSession({ game }: UseGameSessionArgs) {
       if (cancelled) return;
       abilityRef.current = ability;
       staircaseRef.current = newStaircase();
+      // Seed the staircase at the chosen band's offset (clamped internally).
+      staircaseRef.current.offset = Math.min(
+        gamesConfig.staircase.maxOffsetFromTheta,
+        Math.max(-gamesConfig.staircase.maxOffsetFromTheta, levelConfig.startOffset),
+      );
       trialsRef.current = [];
       startedAtRef.current = new Date().toISOString();
       finishedRef.current = false;
@@ -147,7 +162,7 @@ export function useGameSession({ game }: UseGameSessionArgs) {
         domain,
       })),
       thetaAfter: { [domain]: after.theta },
-      completion: Math.min(1, trialsRef.current.length / gamesConfig.sessions.itemsPerSession),
+      completion: Math.min(1, trialsRef.current.length / levelConfig.itemsPerSession),
       endedEarly: endedEarlyRef.current,
     };
 
@@ -196,7 +211,7 @@ export function useGameSession({ game }: UseGameSessionArgs) {
 
       advanceStaircase(staircaseRef.current, outcome.correct);
 
-      const planned = gamesConfig.sessions.itemsPerSession;
+      const planned = levelConfig.itemsPerSession;
       const nextIndex = itemIndex + 1;
 
       // Fatigue: compare recent median RT vs earlier baseline, kind ending.
@@ -235,7 +250,7 @@ export function useGameSession({ game }: UseGameSessionArgs) {
     status,
     domain,
     itemIndex,
-    totalItems: gamesConfig.sessions.itemsPerSession,
+    totalItems: levelConfig.itemsPerSession,
     difficulty,
     theta,
     startTrial,

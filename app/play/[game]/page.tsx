@@ -1,11 +1,13 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { GAME_IDS } from "@/lib/games/types";
+import { GAME_IDS, GAME_META } from "@/lib/games/types";
 import type { GameId } from "@/lib/games/types";
+import { useSettings } from "@/hooks/use-settings";
 import { useGameSession } from "@/hooks/use-game-session";
+import { gamesConfig } from "@/lib/games/config";
 import {
   GameChrome,
   QuitDialog,
@@ -27,6 +29,19 @@ import { SortItGame } from "@/components/games/sortit-game";
 import { StroopGame } from "@/components/games/stroop-game";
 import { TrailGame } from "@/components/games/trail-game";
 import { MelodyGame } from "@/components/games/melody-game";
+import { SequenceGame } from "@/components/games/sequence-game";
+import { ClockGame } from "@/components/games/clock-game";
+import { SpotGame } from "@/components/games/spot-game";
+import { WordRecallGame } from "@/components/games/wordrecall-game";
+import { FollowGame } from "@/components/games/follow-game";
+import { ShadowGame } from "@/components/games/shadow-game";
+import { ReactionGame } from "@/components/games/reaction-game";
+import { WordBuilderGame } from "@/components/games/wordbuilder-game";
+import { CategoryGame } from "@/components/games/category-game";
+import { EmotionGame } from "@/components/games/emotion-game";
+import { TargetGame } from "@/components/games/target-game";
+import { OrderGame } from "@/components/games/order-game";
+import { GameCoach } from "@/components/games/game-coach";
 
 const INSTRUCTIONS: Record<GameId, string> = {
   faces: "Look at the photo — who is this person?",
@@ -45,6 +60,18 @@ const INSTRUCTIONS: Record<GameId, string> = {
   stroop: "Tap the COLOR of the text, not what the word says.",
   trail: "Tap the numbers in order: 1, 2, 3…",
   melody: "Listen to the tune, then tap the same notes back.",
+  sequence: "Watch the order, then tap the items in the same order.",
+  clock: "Read the clock and tap the matching time.",
+  spot: "One tile changed after you looked away — tap the one that changed.",
+  wordrecall: "These words were shown earlier — tap the ones you saw.",
+  follow: "Watch the lights, then tap the pads in the same order.",
+  shadow: "Tap the shape that matches the target.",
+  reaction: "Tap the moment the screen turns green — not before.",
+  wordbuilder: "Build the word by tapping the letters in order.",
+  category: "Drop each item into the group it belongs to.",
+  emotion: "Choose the feeling that matches the face.",
+  target: "Scan the grid and tap the one that matches the target.",
+  order: "Tap the steps in their natural order.",
 };
 
 const GAME_COMPONENTS: Record<
@@ -67,6 +94,18 @@ const GAME_COMPONENTS: Record<
   stroop: StroopGame,
   trail: TrailGame,
   melody: MelodyGame,
+  sequence: SequenceGame,
+  clock: ClockGame,
+  spot: SpotGame,
+  wordrecall: WordRecallGame,
+  follow: FollowGame,
+  shadow: ShadowGame,
+  reaction: ReactionGame,
+  wordbuilder: WordBuilderGame,
+  category: CategoryGame,
+  emotion: EmotionGame,
+  target: TargetGame,
+  order: OrderGame,
 };
 
 const TITLES: Record<GameId, string> = {
@@ -86,6 +125,18 @@ const TITLES: Record<GameId, string> = {
   sortit: "Sorting Station",
   bazaar: "Bazaar Maths",
   spatial: "Where Did I Keep It?",
+  sequence: "Pattern Sequence",
+  clock: "Telling the Time",
+  spot: "Spot the Change",
+  wordrecall: "Word Recall",
+  follow: "Follow the Lights",
+  shadow: "Shadow Match",
+  reaction: "Quick Tap",
+  wordbuilder: "Word Builder",
+  category: "Category Sort",
+  emotion: "Feelings Match",
+  target: "Find the Target",
+  order: "Put in Order",
 };
 
 /**
@@ -107,13 +158,36 @@ export default function PlayGamePage() {
     );
   }
 
-  return <GameHost gameId={slug as GameId} />;
+  return (
+    <Suspense fallback={<div className="mx-auto max-w-3xl px-4 pt-10"><div className="animate-pulse-soft rounded-3xl bg-surface-muted p-16" /></div>}>
+      <GameHost gameId={slug as GameId} />
+    </Suspense>
+  );
 }
 
 function GameHost({ gameId }: { gameId: GameId }) {
-  const session = useGameSession({ game: gameId });
+  const searchParams = useSearchParams();
+  const rawLevel = searchParams.get("level");
+  const level = rawLevel === "easy" || rawLevel === "hard" ? rawLevel : "moderate";
+  const session = useGameSession({ game: gameId, level });
+  const { settings } = useSettings();
   const [confirmQuit, setConfirmQuit] = useState(false);
+  const [coachTrials, setCoachTrials] = useState<{ correct: boolean }[]>([]);
   const Stage = GAME_COMPONENTS[gameId];
+  const domain = GAME_META[gameId].domain;
+
+  // Fresh coach slate each time a session round (re)starts.
+  useEffect(() => {
+    if (session.status === "summary") setCoachTrials([]);
+  }, [session.status]);
+
+  const completeTrial = useCallback(
+    (o: { correct: boolean; hintsUsed?: number }) => {
+      setCoachTrials((t) => [...t, { correct: o.correct }]);
+      session.completeTrial(o);
+    },
+    [session],
+  );
 
   // Leave-guard: finishing mid-game routes through finish() so θ updates persist.
   useEffect(() => {
@@ -144,6 +218,7 @@ function GameHost({ gameId }: { gameId: GameId }) {
       <GameChrome
         title={TITLES[gameId]}
         instruction={INSTRUCTIONS[gameId]}
+        badge={gamesConfig.levels[level].label}
         current={session.itemIndex}
         total={session.totalItems}
         onQuit={() => setConfirmQuit(true)}
@@ -152,8 +227,11 @@ function GameHost({ gameId }: { gameId: GameId }) {
           difficulty={session.difficulty}
           itemKey={session.itemIndex + 1}
           startTrial={session.startTrial}
-          completeTrial={session.completeTrial}
+          completeTrial={completeTrial}
         />
+        {settings.gameCoach && (
+          <GameCoach gameId={gameId} trials={coachTrials} domain={domain} />
+        )}
       </GameChrome>
       <QuitDialog
         open={confirmQuit}

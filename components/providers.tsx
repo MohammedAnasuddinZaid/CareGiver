@@ -4,6 +4,7 @@ import { MotionConfig } from "framer-motion";
 import { SettingsProvider, useSettings } from "@/hooks/use-settings";
 import { ToastProvider } from "@/components/ui/toast";
 import { OfflineBanner, ServiceWorkerRegistration } from "@/components/pwa/offline-banner";
+import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { ReminderSchedulerProvider } from "@/components/reminders/reminder-scheduler-provider";
 
 /**
@@ -30,6 +31,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           <ServiceWorkerRegistration />
           {/* One scheduler for the entire app — overlays consume it. */}
           <ReminderSchedulerProvider>{children}</ReminderSchedulerProvider>
+          <InstallPrompt />
         </ToastProvider>
       </MotionGate>
     </SettingsProvider>

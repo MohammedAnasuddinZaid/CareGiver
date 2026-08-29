@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { Brain, CheckCircle2 } from "lucide-react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Brain, CheckCircle2, Lightbulb, Sparkles } from "lucide-react";
 import { prescribeDailySession } from "@/lib/games/adaptation";
 import { gamesConfig } from "@/lib/games/config";
 import {
@@ -10,10 +11,12 @@ import {
   GAME_IDS,
   SKILL_DOMAINS,
   type GameId,
+  type GameLevel,
 } from "@/lib/games/types";
-import { getAbilities, getRecentSessions } from "@/lib/storage/progress";
+import { getAbilities, getRecentSessions, getAllSessions } from "@/lib/storage/progress";
 import type { AbilityState, GameSession } from "@/lib/games/types";
 import { useLocale } from "@/hooks/use-locale";
+import { buildCoachReport } from "@/lib/cognition/insights";
 import {
   GAME_CATEGORIES,
   GAME_ICONS,
@@ -21,24 +24,58 @@ import {
   GAME_TITLES,
 } from "@/components/games/game-meta";
 
+const LEVEL_LABELS: Record<GameLevel, string> = {
+  easy: "Easy",
+  moderate: "Moderate",
+  hard: "Hard",
+};
+
+/** Builds a game route carrying the selected difficulty band. */
+function gameHref(id: GameId, level: GameLevel): string {
+  return `${GAME_ROUTES[id]}?level=${level}`;
+}
+
 /**
  * Play hub — the AI-prescribed daily plan up top, then the complete game
  * library organized by cognitive category. Every prescribed game is
  * badged so the player can see how today's picks relate to the library.
  */
 export default function PlayPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-3xl px-4 pt-10">
+          <div className="animate-pulse-soft rounded-3xl bg-surface-muted p-16" />
+        </div>
+      }
+    >
+      <PlayHub />
+    </Suspense>
+  );
+}
+
+function PlayHub() {
   const { t } = useLocale();
+  const searchParams = useSearchParams();
+  const rawLevel = searchParams.get("level");
+  const level: GameLevel = rawLevel === "easy" || rawLevel === "hard" ? rawLevel : "moderate";
   const [abilities, setAbilities] = useState<AbilityState[]>([]);
   const [sessions, setSessions] = useState<GameSession[]>([]);
+  const [allSessions, setAllSessions] = useState<GameSession[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [a, s] = await Promise.all([getAbilities(), getRecentSessions(30)]);
+      const [a, s, all] = await Promise.all([
+        getAbilities(),
+        getRecentSessions(30),
+        getAllSessions(),
+      ]);
       if (!cancelled) {
         setAbilities(a);
         setSessions(s);
+        setAllSessions(all);
         setLoaded(true);
       }
     })();
@@ -46,6 +83,11 @@ export default function PlayPage() {
       cancelled = true;
     };
   }, []);
+
+  const coach = useMemo(
+    () => buildCoachReport(allSessions, abilities),
+    [allSessions, abilities],
+  );
 
   const prescription = useMemo(
     () => prescribeDailySession(abilities, sessions),
@@ -92,6 +134,70 @@ export default function PlayPage() {
         </div>
       </div>
 
+      {/* Difficulty band selector */}
+      <div className="mt-5 flex flex-wrap items-center gap-2" role="group" aria-label="Difficulty level">
+        <span className="text-sm font-semibold text-ink-soft">Level:</span>
+        {(["easy", "moderate", "hard"] as GameLevel[]).map((lv) => {
+          const active = lv === level;
+          return (
+            <Link
+              key={lv}
+              href={`/play?level=${lv}`}
+              aria-pressed={active}
+              className={
+                "rounded-full px-4 py-2 text-base font-semibold transition-all min-h-[44px] inline-flex items-center " +
+                (active
+                  ? "bg-accent text-white shadow-soft"
+                  : "border border-line text-ink-soft hover:text-ink hover:border-accent/50")
+              }
+            >
+              {LEVEL_LABELS[lv]}
+            </Link>
+          );
+        })}
+        <span className="ml-1 text-sm text-ink-soft">
+          {level === "easy"
+            ? "Gentle wins to build confidence"
+            : level === "hard"
+            ? "A real stretch for sharp days"
+            : "The balanced default"}
+        </span>
+      </div>
+
+      {/* ---- AI coach strip ---- */}
+      {loaded && coach.insights.length > 0 && (
+        <div className="mt-6 rounded-3xl border border-accent/25 bg-gradient-to-br from-accent-soft to-surface p-5 shadow-soft">
+          <div className="flex items-center gap-2 text-accent">
+            <Sparkles className="h-5 w-5" />
+            <span className="text-sm font-bold uppercase tracking-wide">AI coach</span>
+          </div>
+          <p className="mt-2 text-lg font-semibold leading-snug text-ink">
+            {coach.headline}
+          </p>
+          <ul className="mt-3 space-y-2">
+            {coach.insights.slice(0, 2).map((ins) => (
+              <li key={ins.id} className="flex items-start gap-2 text-sm text-ink-soft">
+                <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                <span>{ins.detail}</span>
+              </li>
+            ))}
+          </ul>
+          {coach.insights[0]?.gameIds && coach.insights[0].gameIds!.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {coach.insights[0].gameIds!.slice(0, 3).map((g) => (
+                <Link
+                  key={g}
+                  href={`${GAME_ROUTES[g]}?level=${coach.insights[0].level ?? "moderate"}`}
+                  className="rounded-full bg-accent px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
+                >
+                  {GAME_TITLES[g]}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ---- Today's plan ---- */}
       {remaining.length === 0 && (
         <div className="mt-8 flex flex-col items-center gap-4 rounded-3xl border border-line bg-surface p-8 text-center shadow-soft">
@@ -110,6 +216,7 @@ export default function PlayPage() {
           <NextGameCard
             gameId={remaining[0]}
             reason={prescription.reasons[remaining[0]] ?? ""}
+            level={level}
           />
         </>
       ) : null}
@@ -125,7 +232,7 @@ export default function PlayPage() {
           return (
             <li key={id}>
               <Link
-                href={GAME_ROUTES[id]}
+                href={gameHref(id, level)}
                 aria-label={
                   done
                     ? `${GAME_TITLES[id]} — completed today. Play again`
@@ -187,6 +294,7 @@ export default function PlayPage() {
                   key={id}
                   gameId={id}
                   planned={plannedSet.has(id)}
+                  level={level}
                 />
               ))}
             </div>
@@ -205,15 +313,17 @@ export default function PlayPage() {
 function LibraryCard({
   gameId,
   planned,
+  level,
 }: {
   gameId: GameId;
   planned: boolean;
+  level: GameLevel;
 }) {
   const Icon = GAME_ICONS[gameId];
   const meta = GAME_META[gameId];
   return (
     <Link
-      href={GAME_ROUTES[gameId]}
+      href={gameHref(gameId, level)}
       className={
         "gradient-ring group relative flex flex-col gap-2 rounded-2xl border-2 bg-surface p-4 shadow-soft transition-all hover:-translate-y-1 hover:shadow-lift active:scale-[0.98] " +
         (planned ? "border-accent/70" : "border-line")
@@ -246,15 +356,17 @@ function LibraryCard({
 function NextGameCard({
   gameId,
   reason,
+  level,
 }: {
   gameId: GameId;
   reason: string;
+  level: GameLevel;
 }) {
   const { t } = useLocale();
   const Icon = GAME_ICONS[gameId];
   return (
     <Link
-      href={GAME_ROUTES[gameId]}
+      href={gameHref(gameId, level)}
       className="btn-sheen group relative mt-8 block overflow-hidden rounded-[2rem] border border-accent/30 bg-surface shadow-lift transition-transform active:scale-[0.99]"
     >
       {/* Drifting aurora glow behind the card content */}
