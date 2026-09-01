@@ -176,6 +176,96 @@ export async function getAllAssets(): Promise<StoredAsset[]> {
   return dbGetAll<StoredAsset>(STORE_ASSETS);
 }
 
+/**
+ * Adds newly captured enrollment photos to an EXISTING person in one
+ * all-or-nothing transaction (asset blobs + descriptor slots + photos).
+ * Used by the add-person flow's "this looks like {name} — merge instead"
+ * path so extra angles EXTEND a profile instead of spawning a duplicate.
+ */
+export async function appendEnrollmentPhotos(
+  personId: string,
+  photos: { id: string; blob: Blob; descriptor: number[] }[],
+): Promise<PersonProfile> {
+  const person = await getPerson(personId);
+  if (!person) throw new Error("Person not found");
+  if (photos.length === 0) return person;
+  const ts = nowISO();
+  const addedAt = ts;
+  await dbTransactionalWrite([
+    ...photos.map((p) => ({
+      store: STORE_ASSETS,
+      type: "put" as const,
+      value: {
+        id: p.id,
+        personId,
+        role: "enrollment" as const,
+        blob: p.blob,
+        createdAt: ts,
+      } satisfies StoredAsset,
+    })),
+    {
+      store: STORE_PROFILES,
+      type: "put" as const,
+      value: {
+        ...person,
+        enrollmentPhotos: [
+          ...person.enrollmentPhotos,
+          ...photos.map((p) => ({ id: p.id, addedAt })),
+        ],
+        descriptors: [...person.descriptors, ...photos.map((p) => p.descriptor)],
+        updatedAt: ts,
+      } satisfies PersonProfile,
+    },
+  ]);
+  return (await getPerson(personId)) as PersonProfile;
+}
+
+/**
+ * Merges one profile (and ALL its enrollment assets/descriptors) into
+ * another, then removes the source profile — atomically. This repairs the
+ * "same person enrolled twice" mistake that makes recognition flip between
+ * two names depending on head angle: after the merge, the poses live in one
+ * profile and the old match behavior is restored.
+ */
+export async function mergePersonInto(
+  sourceId: string,
+  targetId: string,
+): Promise<PersonProfile> {
+  const source = await getPerson(sourceId);
+  const target = await getPerson(targetId);
+  if (!source || !target) throw new Error("Person not found");
+  if (sourceId === targetId) return target;
+  const ts = nowISO();
+  const assets = (await getAllAssets()).filter(
+    (a) => a.personId === sourceId && a.role === "enrollment",
+  );
+  await dbTransactionalWrite([
+    // Re-point every source asset at the target (same keys, one transaction).
+    ...assets.map((a) => ({
+      store: STORE_ASSETS,
+      type: "put" as const,
+      value: { ...a, personId: targetId } satisfies StoredAsset,
+    })),
+    // Fold the source enrollment into the target profile.
+    {
+      store: STORE_PROFILES,
+      type: "put" as const,
+      value: {
+        ...target,
+        enrollmentPhotos: [
+          ...target.enrollmentPhotos,
+          ...source.enrollmentPhotos,
+        ],
+        descriptors: [...target.descriptors, ...source.descriptors],
+        updatedAt: ts,
+      } satisfies PersonProfile,
+    },
+    // Drop the source profile row.
+    { store: STORE_PROFILES, type: "delete" as const, key: sourceId },
+  ]);
+  return (await getPerson(targetId)) as PersonProfile;
+}
+
 /** Removes a specific enrollment photo + its descriptor + its stored blob.
  *  Asset deletion and profile update commit in ONE transaction so a crash
  *  halfway can never leave a profile pointing at a deleted blob. */

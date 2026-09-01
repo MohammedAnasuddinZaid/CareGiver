@@ -12,23 +12,21 @@ import {
   SKILL_DOMAINS,
   type GameId,
   type GameLevel,
+  type SkillDomain,
 } from "@/lib/games/types";
 import { getAbilities, getRecentSessions, getAllSessions } from "@/lib/storage/progress";
 import type { AbilityState, GameSession } from "@/lib/games/types";
 import { useLocale } from "@/hooks/use-locale";
+import { gameTitle } from "@/lib/i18n/games";
 import { buildCoachReport } from "@/lib/cognition/insights";
 import {
   GAME_CATEGORIES,
   GAME_ICONS,
   GAME_ROUTES,
-  GAME_TITLES,
 } from "@/components/games/game-meta";
 
-const LEVEL_LABELS: Record<GameLevel, string> = {
-  easy: "Easy",
-  moderate: "Moderate",
-  hard: "Hard",
-};
+type GameLevelKey = `level${Capitalize<GameLevel>}`;
+type DomainKey = `domain${Capitalize<SkillDomain>}`;
 
 /** Builds a game route carrying the selected difficulty band. */
 function gameHref(id: GameId, level: GameLevel): string {
@@ -55,7 +53,9 @@ export default function PlayPage() {
 }
 
 function PlayHub() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const domainLabel = (d: SkillDomain) =>
+    t(`domain${d.charAt(0).toUpperCase()}${d.slice(1)}` as DomainKey);
   const searchParams = useSearchParams();
   const rawLevel = searchParams.get("level");
   const level: GameLevel = rawLevel === "easy" || rawLevel === "hard" ? rawLevel : "moderate";
@@ -135,8 +135,8 @@ function PlayHub() {
       </div>
 
       {/* Difficulty band selector */}
-      <div className="mt-5 flex flex-wrap items-center gap-2" role="group" aria-label="Difficulty level">
-        <span className="text-sm font-semibold text-ink-soft">Level:</span>
+      <div className="mt-5 flex flex-wrap items-center gap-2" role="group" aria-label={t("levelModerate")}>
+        <span className="text-sm font-semibold text-ink-soft">{t("level")}:</span>
         {(["easy", "moderate", "hard"] as GameLevel[]).map((lv) => {
           const active = lv === level;
           return (
@@ -151,16 +151,16 @@ function PlayHub() {
                   : "border border-line text-ink-soft hover:text-ink hover:border-accent/50")
               }
             >
-              {LEVEL_LABELS[lv]}
+              {t(`level${lv.charAt(0).toUpperCase()}${lv.slice(1)}` as GameLevelKey)}
             </Link>
           );
         })}
         <span className="ml-1 text-sm text-ink-soft">
           {level === "easy"
-            ? "Gentle wins to build confidence"
+            ? t("easyHint")
             : level === "hard"
-            ? "A real stretch for sharp days"
-            : "The balanced default"}
+            ? t("hardHint")
+            : t("moderateHint")}
         </span>
       </div>
 
@@ -169,7 +169,7 @@ function PlayHub() {
         <div className="mt-6 rounded-3xl border border-accent/25 bg-gradient-to-br from-accent-soft to-surface p-5 shadow-soft">
           <div className="flex items-center gap-2 text-accent">
             <Sparkles className="h-5 w-5" />
-            <span className="text-sm font-bold uppercase tracking-wide">AI coach</span>
+            <span className="text-sm font-bold uppercase tracking-wide">{t("aiCoach")}</span>
           </div>
           <p className="mt-2 text-lg font-semibold leading-snug text-ink">
             {coach.headline}
@@ -190,7 +190,7 @@ function PlayHub() {
                   href={`${GAME_ROUTES[g]}?level=${coach.insights[0].level ?? "moderate"}`}
                   className="rounded-full bg-accent px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent-strong"
                 >
-                  {GAME_TITLES[g]}
+                  {gameTitle(g, locale)}
                 </Link>
               ))}
             </div>
@@ -204,8 +204,7 @@ function PlayHub() {
           <CheckCircle2 className="h-14 w-14 text-ok" />
           <h2 className="text-2xl font-bold text-ink">{t("sessionComplete")}</h2>
           <p className="max-w-sm text-base leading-relaxed text-ink-soft">
-            Today&apos;s plan is complete. You can still play any game below —
-            or come back tomorrow for a fresh plan.
+            {t("planComplete")}
           </p>
         </div>
       )}
@@ -235,8 +234,8 @@ function PlayHub() {
                 href={gameHref(id, level)}
                 aria-label={
                   done
-                    ? `${GAME_TITLES[id]} — completed today. Play again`
-                    : GAME_TITLES[id]
+                    ? `${gameTitle(id, locale)} — ${t("completedToday")}. ${t("playAgain")}`
+                    : gameTitle(id, locale)
                 }
                 className={
                   "flex items-center gap-4 rounded-2xl border bg-surface p-4 transition-all hover:shadow-soft " +
@@ -248,17 +247,17 @@ function PlayHub() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-lg font-bold text-ink">
-                    {GAME_TITLES[id]}
+                    {gameTitle(id, locale)}
                   </span>
                   <span className="block text-sm text-ink-soft">
-                    {meta.domain} · ~{gamesConfig.sessions.itemsPerSession}{" "}
-                    items · {prescription.reasons[id]}
+                    {domainLabel(meta.domain)} · ~{gamesConfig.sessions.itemsPerSession}{" "}
+                    {t("itemsWord")} · {prescription.reasons[id]}
                   </span>
                 </span>
                 {done && (
                   <>
                     <CheckCircle2 className="h-6 w-6 shrink-0 text-ok" />
-                    <span className="sr-only">Completed today</span>
+                    <span className="sr-only">{t("completedToday")}</span>
                   </>
                 )}
               </Link>
@@ -269,11 +268,11 @@ function PlayHub() {
 
       {/* ---- Full library by category ---- */}
       <h2 className="mb-1 mt-12 text-2xl font-bold tracking-tight text-ink">
-        All games
+        {t("allGames")}
       </h2>
       <p className="mb-6 text-base text-ink-soft">
-        {GAME_IDS.length} gentle exercises across {SKILL_DOMAINS.length} skills.
-        Badged games are in today&apos;s plan.
+        {GAME_IDS.length} {t("libraryExercises")} across {SKILL_DOMAINS.length}{" "}
+        {t("librarySkills")}. {t("libraryBadged")}.
       </p>
 
       {GAME_CATEGORIES.map((category) => {
@@ -281,12 +280,12 @@ function PlayHub() {
           (id) => GAME_META[id].category === category.id,
         );
         return (
-          <section key={category.id} className="mt-7" aria-label={category.titleKey}>
+          <section key={category.id} className="mt-7" aria-label={t(category.titleKey)}>
             <div className="mb-3 flex items-baseline justify-between gap-3">
               <h3 className="text-lg font-bold text-ink">
                 {t(category.titleKey)}
               </h3>
-              <p className="text-sm text-ink-soft">{category.blurb}</p>
+              <p className="text-sm text-ink-soft">{t(category.blurbKey)}</p>
             </div>
             <div className="reveal-stagger grid grid-cols-2 gap-3 sm:grid-cols-3">
               {games.map((id) => (
@@ -303,8 +302,7 @@ function PlayHub() {
       })}
 
       <p className="mt-10 text-center text-sm leading-relaxed text-ink-soft">
-        Short daily sessions work best — twice a day if you enjoy them.
-        Everything runs on this device.
+        {t("footnote")}
       </p>
     </div>
   );
@@ -319,8 +317,11 @@ function LibraryCard({
   planned: boolean;
   level: GameLevel;
 }) {
+  const { t, locale } = useLocale();
   const Icon = GAME_ICONS[gameId];
   const meta = GAME_META[gameId];
+  const domainLabel = (d: SkillDomain) =>
+    t(`domain${d.charAt(0).toUpperCase()}${d.slice(1)}` as DomainKey);
   return (
     <Link
       href={gameHref(gameId, level)}
@@ -331,7 +332,7 @@ function LibraryCard({
     >
       {planned && (
         <span className="glow-pulse absolute -top-2.5 right-3 rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white shadow-soft">
-          Today
+          {t("todayBadge")}
         </span>
       )}
       <span
@@ -343,11 +344,12 @@ function LibraryCard({
         <Icon className="h-6 w-6" />
       </span>
       <span className="text-base font-bold leading-tight text-ink">
-        {GAME_TITLES[gameId]}
+        {gameTitle(gameId, locale)}
       </span>
       <span className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
-        {meta.domain}
-        {meta.secondaryDomains.length > 0 && ` + ${meta.secondaryDomains.join(", ")}`}
+        {domainLabel(meta.domain)}
+        {meta.secondaryDomains.length > 0 &&
+          ` + ${meta.secondaryDomains.map(domainLabel).join(", ")}`}
       </span>
     </Link>
   );
@@ -362,7 +364,7 @@ function NextGameCard({
   reason: string;
   level: GameLevel;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const Icon = GAME_ICONS[gameId];
   return (
     <Link
@@ -380,10 +382,10 @@ function NextGameCard({
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-xs font-bold uppercase tracking-widest text-accent">
-            Up next · why: {reason}
+            {t("upNext")} · {t("why")}: {reason}
           </span>
           <span className="mt-1 block truncate text-2xl font-extrabold text-ink">
-            {GAME_TITLES[gameId]}
+            {gameTitle(gameId, locale)}
           </span>
           <span className="mt-1 block text-base text-ink-soft">
             ~{Math.round(gamesConfig.sessions.itemsPerSession * 0.7)} {t("minutes")}

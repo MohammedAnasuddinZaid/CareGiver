@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
@@ -11,6 +11,7 @@ import {
   CircleCheckBig,
   ScanFace,
   Trash2,
+  UserCheck,
 } from "lucide-react";
 import clsx from "clsx";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -21,8 +22,15 @@ import { CameraCapture } from "@/components/people/camera-capture";
 import { Avatar } from "@/components/people/avatar";
 import { useToast } from "@/components/ui/toast";
 import { RELATIONSHIPS } from "@/lib/types/person";
-import { createPerson, putAssetsBulk } from "@/lib/storage/profiles";
-import { recognitionConfig } from "@/lib/recognition/config";
+import type { PersonProfile } from "@/lib/types/person";
+import {
+  appendEnrollmentPhotos,
+  createPerson,
+  getPeople,
+  putAssetsBulk,
+} from "@/lib/storage/profiles";
+import { recognitionConfig, thresholdFor } from "@/lib/recognition/config";
+import { findLookalikeProfiles } from "@/lib/recognition/matching";
 
 type Step = 0 | 1 | 2 | 3 | 4;
 
@@ -43,12 +51,55 @@ export default function AddPersonPage() {
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
 
+  // People already enrolled — used to catch the "same face, second profile"
+  // mistake that breaks recognition for that person.
+  const [people, setPeople] = useState<PersonProfile[]>([]);
+  const [lookalike, setLookalike] = useState<PersonProfile | null>(null);
+  const [processedLookalike, setProcessedLookalike] = useState(false);
+  const [merging, setMerging] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPeople().then((all) => {
+      if (!cancelled) setPeople(all);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Whenever a new photo arrives (or is removed), re-check whether the
+  // whole set clearly matches someone who is already enrolled.
+  useEffect(() => {
+    let cancelled = false;
+    setProcessedLookalike(false);
+    setLookalike(null);
+    if (photos.length === 0 || people.length === 0) return;
+    void (async () => {
+      const result = await findLookalikeProfiles(
+        photos.map((p) => p.descriptor),
+        people,
+        thresholdFor(recognitionConfig.defaultSensitivity),
+      );
+      if (cancelled || !result) return;
+      const match = people.find((p) => p.id === result.personId);
+      if (match) setLookalike(match);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [photos, people]);
+
   const relationship =
     relationshipChoice === "Other"
       ? customRelationship.trim()
       : relationshipChoice;
 
   const maxPhotos = recognitionConfig.maxEnrollmentPhotos;
+
+  // Show the "looks like an existing person" warning until the caregiver
+  // acts on it — merge the photos in or explicitly keep a separate profile.
+  const showLookalikeBanner = lookalike !== null && !processedLookalike;
 
   const validateWho = useCallback((): boolean => {
     const next: typeof errors = {};
@@ -68,10 +119,30 @@ export default function AddPersonPage() {
   );
 
   const canContinue = useMemo(() => {
+    if (lookalike && !processedLookalike) return false;
     if (step === 0) return true;
     if (step === 2) return photos.length > 0;
     return true;
-  }, [step, photos.length]);
+  }, [step, photos.length, lookalike, processedLookalike]);
+
+  async function handleMergeToExisting() {
+    if (!lookalike || merging) return;
+    setMerging(true);
+    try {
+      await appendEnrollmentPhotos(
+        lookalike.id,
+        photos.map((p) => ({ id: p.id, blob: p.blob, descriptor: p.descriptor })),
+      );
+      setSavedId(lookalike.id);
+      setProcessedLookalike(true);
+      setStep(4);
+      toast(`Photos added to ${lookalike.name} — old AND new angles will recognize them.`);
+    } catch {
+      toast("Couldn't update the existing profile in this browser session. Is private browsing on?", "error");
+    } finally {
+      setMerging(false);
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -263,24 +334,34 @@ export default function AddPersonPage() {
                 disabled={photos.length >= maxPhotos || saving}
               />
               {photos.length > 0 && (
-                <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3" aria-label="Recognition photos">
-                  {photos.map((photo) => (
-                    <li key={photo.id} className="group relative overflow-hidden rounded-2xl border border-line shadow-soft">
-                      <img src={photo.thumb} alt="Added face preview" className="aspect-square w-full object-cover" />
-                      <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-600/95 px-2.5 py-1 text-xs font-bold text-white">
-                        <Check className="h-3.5 w-3.5" aria-hidden /> Face found
-                      </span>
-                      <button
-                        type="button"
-                        aria-label="Remove this photo"
-                        onClick={() => setPhotos((prev) => prev.filter((p) => p.id !== photo.id))}
-                        className="absolute right-2 top-2 rounded-full bg-black/55 p-2 text-white opacity-0 transition-opacity hover:bg-danger focus-visible:opacity-100 group-hover:opacity-100"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {showLookalikeBanner && (
+                    <LookalikeBanner
+                      person={lookalike}
+                      merging={merging}
+                      onMerge={handleMergeToExisting}
+                      onKeepNew={() => setProcessedLookalike(true)}
+                    />
+                  )}
+                  <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3" aria-label="Recognition photos">
+                    {photos.map((photo) => (
+                      <li key={photo.id} className="group relative overflow-hidden rounded-2xl border border-line shadow-soft">
+                        <img src={photo.thumb} alt="Added face preview" className="aspect-square w-full object-cover" />
+                        <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-600/95 px-2.5 py-1 text-xs font-bold text-white">
+                          <Check className="h-3.5 w-3.5" aria-hidden /> Face found
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="Remove this photo"
+                          onClick={() => setPhotos((prev) => prev.filter((p) => p.id !== photo.id))}
+                          className="absolute right-2 top-2 rounded-full bg-black/55 p-2 text-white opacity-0 transition-opacity hover:bg-danger focus-visible:opacity-100 group-hover:opacity-100"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           </>
@@ -290,6 +371,16 @@ export default function AddPersonPage() {
           <>
             <h1 className="text-3xl font-bold tracking-tight">Review &amp; save</h1>
             <p className="mt-2 text-lg text-ink-soft">Everything stays on this device.</p>
+            {showLookalikeBanner && (
+              <div className="mt-6">
+                <LookalikeBanner
+                  person={lookalike}
+                  merging={merging}
+                  onMerge={handleMergeToExisting}
+                  onKeepNew={() => setProcessedLookalike(true)}
+                />
+              </div>
+            )}
             <div className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-start">
               <Avatar name={name || "?"} id={name || "preview"} src={photos[0]?.thumb ?? null} size="lg" />
               <dl className="min-w-0 flex-1 space-y-2 text-lg">
@@ -326,8 +417,8 @@ export default function AddPersonPage() {
               <ArrowRight className="h-5 w-5" aria-hidden />
             </Button>
           ) : (
-            <Button size="lg" onClick={handleSave} disabled={saving}>
-              {saving ? "Saving locally…" : "Save person"}
+            <Button size="lg" onClick={handleSave} disabled={saving || showLookalikeBanner}>
+              {saving ? "Saving locally…" : showLookalikeBanner ? "Looks like someone you know — make a choice above" : "Save person"}
               {!saving && <ArrowRight className="h-5 w-5" aria-hidden />}
             </Button>
           )}
@@ -335,6 +426,50 @@ export default function AddPersonPage() {
           </motion.div>
         </AnimatePresence>
       </Card>
+    </div>
+  );
+}
+
+function LookalikeBanner({
+  person,
+  merging,
+  onMerge,
+  onKeepNew,
+}: {
+  person: PersonProfile;
+  merging: boolean;
+  onMerge: () => void;
+  onKeepNew: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      className="rounded-2xl border border-amber-300/70 bg-amber-50 p-4 shadow-soft md:p-5"
+    >
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+          <UserCheck className="h-5 w-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-bold leading-snug text-amber-900">
+            These photos look like {person.name}, who is already enrolled.
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-amber-800">
+            Adding them as a new person would split their recognition — one
+            head turn might show {person.name}, another a copy. Add these
+            photos to {person.name}&rsquo;s existing profile instead so every
+            angle stays one person.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button size="md" onClick={onMerge} disabled={merging}>
+              {merging ? "Adding to existing profile…" : `Add to ${person.name}&rsquo;s profile`}
+            </Button>
+            <Button variant="ghost" size="md" onClick={onKeepNew} disabled={merging}>
+              Keep as a new person
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

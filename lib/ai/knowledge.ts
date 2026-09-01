@@ -6,9 +6,14 @@ export interface KBDoc {
   id: string;
   /** Lowercased phrases that signal this answer is relevant. */
   keywords: string[];
+  /** Static answer text (used directly, or as the fallback when no live
+   *  personal data answers a "my …" question). */
   answer: string;
   tone: CompanionTone;
   suggest?: GameId;
+  /** When set, this doc is answered from live on-device data instead of the
+   *  static `answer`. The answer string serves as a no-data fallback. */
+  personal?: "people" | "reminders" | "progress";
 }
 
 /**
@@ -242,6 +247,111 @@ const DOCS: KBDoc[] = [
       "A nice place to begin is the Games page — pick one that feels good and play on Easy. Add family in People so Companion Mode can learn them, and set a reminder or two. I'm here any time you'd like a nudge.",
     tone: "suggest",
     suggest: "faces",
+  },
+  // --- Personal, device-specific questions (answered from live data) ---
+  {
+    id: "my-people",
+    keywords: [
+      "how many people",
+      "my people",
+      "my family",
+      "who do i know",
+      "who is saved",
+      "who have i added",
+      "how many do i know",
+      "my contacts",
+      "people i saved",
+      "who is enrolled",
+      "list my people",
+      "who's saved",
+      "who are my people",
+    ],
+    personal: "people",
+    answer:
+      "You haven't added anyone to People yet. When you add a few photos of family or friends, Companion Mode can recognise them and say their name. Go to the People page to get started.",
+    tone: "suggest",
+    suggest: "faces",
+  },
+  {
+    id: "my-reminders",
+    keywords: [
+      "my reminders",
+      "list my reminders",
+      "what reminders",
+      "do i have any reminders",
+      "my alerts",
+      "what alerts",
+      "my medicines",
+      "my appointments",
+      "what do i have scheduled",
+      "my schedule",
+      "show my reminders",
+    ],
+    personal: "reminders",
+    answer:
+      "You don't have any reminders set yet. The Reminders page lets you set gentle prompts for medicine, meals, calls or walks — all kept on this device.",
+    tone: "suggest",
+  },
+  {
+    id: "my-progress",
+    keywords: [
+      "my progress",
+      "my games",
+      "how many games",
+      "what have i played",
+      "games have i played",
+      "my scores",
+      "how am i doing",
+      "my activity",
+      "show my progress",
+      "games played",
+      "how much have i played",
+      "my history",
+    ],
+    personal: "progress",
+    answer:
+      "You haven't played any games yet. The Games page has gentle exercises for memory, attention, thinking and finding — start on Easy whenever you like.",
+    tone: "coach",
+  },
+  // --- More small-answer facts about the app ---
+  {
+    id: "what-games",
+    keywords: [
+      "how many games",
+      "what games are there",
+      "all the games",
+      "list games",
+      "game list",
+      "how many",
+    ],
+    answer:
+      "There are 28 gentle games across four areas: memory, focus, thinking and finding — covering faces, names, patterns, maths, music, colours, routines and more. Head to the Games page to browse them; most can be played on Easy, Moderate or Hard.",
+    tone: "suggest",
+    suggest: "faces",
+  },
+  {
+    id: "what-people",
+    keywords: ["people page", "what is people", "add a person", "add person", "new person", "add family"],
+    answer:
+      "The People page is where you keep the familiar people in your life — family, friends and caregivers — along with a few clear photos of each. Companion Mode uses those photos to recognise someone and gently say their name.",
+    tone: "suggest",
+    suggest: "faces",
+  },
+  {
+    id: "why-games",
+    keywords: [
+      "why games",
+      "why play",
+      "do these help",
+      "is this good for me",
+      "does it work",
+      "actually help",
+      "any point",
+      "why should i",
+    ],
+    answer:
+      "These games are gentle, everyday exercises for the kinds of thinking we use all the time — remembering names, staying on task, planning a routine and finding things. There's no pass or fail; keeping your mind active in small, steady steps is what matters.",
+    tone: "coach",
   },
 ];
 

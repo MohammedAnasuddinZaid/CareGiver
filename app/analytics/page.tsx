@@ -18,7 +18,7 @@ import {
 import { DOMAIN_INFO } from "@/lib/games/config";
 import { SKILL_DOMAINS } from "@/lib/games/types";
 import type { AbilityState, GameSession } from "@/lib/games/types";
-import { GAME_ROUTES, GAME_TITLES } from "@/components/games/game-meta";
+import { GAME_ROUTES } from "@/components/games/game-meta";
 import { thetaStandardError } from "@/lib/cognition/traits";
 import { getAbilities, getRecentSessions, getAllSessions } from "@/lib/storage/progress";
 import { getRecentEvents } from "@/lib/storage/reminders";
@@ -32,6 +32,7 @@ import {
 import { buildCoachReport, type Insight } from "@/lib/cognition/insights";
 import { buildReportHtml, openReportForPrint } from "@/lib/cognition/report";
 import { useLocale } from "@/hooks/use-locale";
+import { gameTitle } from "@/lib/i18n/games";
 
 /**
  * Caregiver analytics: cognitive trends per domain (OLS weekly slope over
@@ -290,6 +291,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 function InsightCard({ insight }: { insight: Insight }) {
+  const { locale } = useLocale();
   const tone = insight.tone;
   const Icon =
     tone === "praise" ? Heart : tone === "warning" ? AlertTriangle : tone === "plan" ? ListChecks : Lightbulb;
@@ -324,7 +326,7 @@ function InsightCard({ insight }: { insight: Insight }) {
                   href={`${GAME_ROUTES[g]}?level=${insight.level ?? "moderate"}`}
                   className="rounded-full bg-surface px-3 py-1.5 text-sm font-semibold text-accent shadow-soft transition-colors hover:bg-accent hover:text-white"
                 >
-                  {GAME_TITLES[g]}
+                  {gameTitle(g, locale)}
                 </a>
               ))}
             </div>

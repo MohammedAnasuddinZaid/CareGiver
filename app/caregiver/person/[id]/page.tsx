@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  GitMerge,
   RefreshCcw,
   ScanFace,
   ShieldCheck,
@@ -23,7 +24,9 @@ import { CameraCapture } from "@/components/people/camera-capture";
 import {
   deletePerson,
   getAsset,
+  getPeople,
   getPerson,
+  mergePersonInto,
   putAsset,
   removeEnrollmentPhoto,
   rebuildDescriptors,
@@ -42,6 +45,22 @@ export default function PersonProfilePage() {
   const [notFound, setNotFound] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
+
+  // Other enrolled people — candidates for merging a duplicate profile away.
+  const [candidates, setCandidates] = useState<PersonProfile[]>([]);
+  const [mergeTargetId, setMergeTargetId] = useState("");
+  const [confirmMerge, setConfirmMerge] = useState(false);
+  const [merging, setMerging] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPeople().then((all) => {
+      if (!cancelled) setCandidates(all.filter((p) => p.id !== params.id));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id]);
 
   const load = useCallback(async () => {
     try {
@@ -146,6 +165,23 @@ export default function PersonProfilePage() {
       router.push("/caregiver");
     } catch {
       toast("Could not delete this profile.", "error");
+    }
+  }
+
+  async function handleMerge() {
+    if (!person || !mergeTargetId) return;
+    setMerging(true);
+    try {
+      const target = candidates.find((c) => c.id === mergeTargetId);
+      await mergePersonInto(person.id, mergeTargetId);
+      toast(
+        `Merged ${person.name} into ${target?.name ?? "the selected profile"}.\n` +
+          "All their angles now recognize as one person.",
+      );
+      router.push(`/caregiver/person/${mergeTargetId}`);
+    } catch {
+      toast("Couldn't merge the profiles in this browser session. Is private browsing on?", "error");
+      setMerging(false);
     }
   }
 
@@ -301,6 +337,47 @@ export default function PersonProfilePage() {
           <Trash2 className="h-5 w-5" aria-hidden />
           Delete profile
         </Button>
+
+        <div className="mt-8 border-t border-red-200 pt-6">
+          <p className="text-lg font-semibold text-danger">
+            Merged {person.name} was enrolled twice by mistake?
+          </p>
+          <p className="mt-1 max-w-xl text-base text-ink-soft">
+            If the same person was added more than once, combine them here. Their photos and
+            recognition data move into the other profile, so every angle of their face settles on
+            one identity again.
+          </p>
+          {candidates.length === 0 ? (
+            <p className="mt-4 rounded-2xl bg-surface-muted p-4 text-base text-ink-soft">
+              No other profiles on this device to merge {person.name} into.
+            </p>
+          ) : (
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <select
+                aria-label="Choose the profile to merge into"
+                value={mergeTargetId}
+                onChange={(e) => setMergeTargetId(e.target.value)}
+                className="min-h-[44px] w-full rounded-2xl border border-line bg-night-card px-4 py-2.5 text-base outline-none transition-colors focus:border-accent sm:w-auto sm:min-w-[260px]"
+              >
+                <option value="">Choose a profile to receive the data…</option>
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} · {c.relationship}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="danger"
+                size="md"
+                disabled={!mergeTargetId || merging}
+                onClick={() => setConfirmMerge(true)}
+              >
+                <GitMerge className="h-4 w-4" aria-hidden />
+                {merging ? "Merging…" : `Merge ${person.name} into it`}
+              </Button>
+            </div>
+          )}
+        </div>
       </section>
 
       <ConfirmDialog
@@ -310,6 +387,19 @@ export default function PersonProfilePage() {
         title={`Remove ${person.name}?`}
         body={`This permanently removes ${person.name}'s profile and all recognition data from this device.`}
         confirmLabel="Delete everything"
+      />
+
+      <ConfirmDialog
+        open={confirmMerge}
+        onClose={() => setConfirmMerge(false)}
+        onConfirm={handleMerge}
+        title={`Merge ${person.name} into another profile?`}
+        body={
+          candidates.find((c) => c.id === mergeTargetId)
+            ? `${person.name}'s photos and recognition data will move into ${candidates.find((c) => c.id === mergeTargetId)?.name}'s profile, and ${person.name}'s separate profile will be deleted. The stronger, combined profile keeps them recognizable from every angle.`
+            : "This cannot be undone."
+        }
+        confirmLabel="Merge and combine"
       />
 
       <p className="mt-8 flex items-center justify-center gap-2 text-center text-base text-ink-soft">

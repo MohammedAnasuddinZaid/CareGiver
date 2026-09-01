@@ -269,6 +269,55 @@ export function deduplicateFrameMatches<T extends {
 /** Minimum distance gap to consider two faces as different people. */
 const DUPLICATE_GAP_THRESHOLD = 0.06;
 
+export interface LookalikeResult {
+  personId: string;
+  distance: number;
+  votes: number;
+}
+
+/**
+ * Enrollment-time duplicate detection. Takes a set of freshly captured
+ * descriptors (the "new data" a caregiver is adding) and asks whether they
+ * clearly belong to someone who is ALREADY enrolled. This is what stops the
+ * same face from silently gaining a second profile — the root cause of
+ * "the old data stops working": two profiles holding overlapping poses of
+ * the same person make recognition flip to whichever profile is nearest for
+ * the current head turn.
+ *
+ * Votes: each new descriptor must individually recognize an existing
+ * profile at the strict threshold; at least half of the set must agree on
+ * the SAME person before we report a lookalike, so a few noisy captures can
+ * never trigger a false merge suggestion.
+ */
+export function findLookalikeProfiles(
+  newDescriptors: readonly number[][],
+  profiles: ProfileLike[],
+  threshold: number,
+): LookalikeResult | null {
+  const index = buildProfileIndex(profiles);
+  if (index.entries.length === 0 || newDescriptors.length === 0) return null;
+  let best: LookalikeResult | null = null;
+  for (const descriptor of newDescriptors) {
+    const m = identifyFaceIndexedDetailed(l2Normalize(descriptor), index, {
+      threshold,
+    });
+    if (m.status !== "recognized" || !m.personId) continue;
+    if (!best) {
+      best = { personId: m.personId, distance: m.distance ?? Infinity, votes: 1 };
+    } else if (m.personId === best.personId) {
+      best = { personId: best.personId, distance: best.distance, votes: best.votes + 1 };
+    } else if (m.distance !== null && m.distance < best.distance) {
+      // Differing profile won: only switch when it is clearly closer AND
+      // gather just as much support, otherwise keep the current leader.
+      best = { personId: m.personId, distance: m.distance, votes: 1 };
+    }
+  }
+  if (!best) return null;
+  // Require a clear majority of the new set to agree before suggesting.
+  if (best.votes * 2 < newDescriptors.length) return null;
+  return best;
+}
+
 /** Back-compatible simple matcher built on the detailed pipeline. */
 export function identifyFace(
   query: number[],

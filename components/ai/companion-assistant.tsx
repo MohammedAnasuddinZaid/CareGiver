@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,7 +9,7 @@ import {
   useDragControls,
   useMotionValue,
 } from "framer-motion";
-import { Heart, Send, Sparkles, X } from "lucide-react";
+import { Send, Sparkles, Terminal, X } from "lucide-react";
 import {
   respond,
   routeTip,
@@ -23,6 +23,7 @@ import {
   saveProfile,
   type AIProfile,
 } from "@/lib/ai/store";
+import { gatherContext, type DeviceContext } from "@/lib/ai/context";
 import { GAME_ROUTES, GAME_TITLES } from "@/components/games/game-meta";
 import type { GameId } from "@/lib/games/types";
 import { loadDragPos, saveDragPos } from "@/lib/ui/drag-pos";
@@ -72,10 +73,12 @@ export function CompanionAssistant() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, profile]);
 
-  // Autoscroll + focus.
+  // Autoscroll the message list only. We deliberately do NOT focus the
+  // input when the panel opens: on phones the keyboard would pop up and
+  // the browser scrolls the whole page down, which reads as the companion
+  // "opening at the bottom" of the site. The player taps to type instead.
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    if (open) inputRef.current?.focus();
   }, [messages, typing, open]);
 
   const toMsg = (from: Msg["from"], r: CompanionReply | string): Msg => ({
@@ -88,15 +91,28 @@ export function CompanionAssistant() {
   });
 
   const send = useCallback(
-    (text: string) => {
+    async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || !profile) return;
       setMessages((m) => [...m, toMsg("user", trimmed)]);
       setInput("");
       setTyping(true);
       const current = profile;
-      timerRef.current = setTimeout(() => {
-        const { reply, patch } = respond({ message: trimmed, route: pathname }, current);
+      timerRef.current = setTimeout(async () => {
+        // Gather the person's real on-device data so 'my …' questions get
+        // accurate answers. Never blocks a reply — the model still answers
+        // from the static knowledge base if gathering fails.
+        let ctx: DeviceContext | null = null;
+        try {
+          ctx = await gatherContext();
+        } catch {
+          ctx = null;
+        }
+        const { reply, patch } = respond(
+          { message: trimmed, route: pathname },
+          current,
+          ctx,
+        );
         const next = applyPatch(current, patch);
         saveProfile(next);
         setProfile(next);
@@ -120,6 +136,61 @@ export function CompanionAssistant() {
   const startPos = loadDragPos("ma.companion.pos.v1");
   const lx = useMotionValue(startPos.x);
   const ly = useMotionValue(startPos.y);
+  // Re-render so the open panel stays glued to the launcher after a drag.
+  const [, forceRerender] = useReducer((c: number) => c + 1, 0);
+
+  // Track the viewport so the panel can open NEXT TO the launcher, wherever
+  // it was dragged. Opening at the fixed bottom-right instead was what made
+  // it feel like the chat "opens at the bottom of the page" far from the AI
+  // symbol. `md` mirrors Tailwind's breakpoint so offsets stay in sync.
+  const [vp, setVp] = useState<{ w: number; h: number; md: boolean }>(() =>
+    typeof window === "undefined"
+      ? { w: 0, h: 0, md: false }
+      : {
+          w: window.innerWidth,
+          h: window.innerHeight,
+          md: window.matchMedia("(min-width: 768px)").matches,
+        },
+  );
+
+  useEffect(() => {
+    const measure = () =>
+      setVp({
+        w: window.innerWidth,
+        h: window.innerHeight,
+        md: window.matchMedia("(min-width: 768px)").matches,
+      });
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+    };
+  }, []);
+
+  // Panel placement derived from the launcher's CURRENT drag position.
+  // Opens just above the symbol (or below it when there isn't enough room),
+  // right-aligned to it, clamped inside the viewport.
+  const panelStyle = (() => {
+    if (vp.w === 0) return null;
+    const launcherSize = 56;
+    const gap = 14;
+    const baseBottom = vp.md ? 24 : 96; // md:bottom-6 / bottom-24
+    const baseRight = vp.md ? 24 : 16; // md:right-6 / right-4
+    const launcherLeft = vp.w - baseRight - launcherSize + lx.get();
+    const launcherTop = vp.h - baseBottom - launcherSize + ly.get();
+    const launcherBottom = launcherTop + launcherSize;
+    const width = Math.min(512, vp.w - 16);
+    const height = Math.min(vp.h * 0.82, 620);
+    const fitsAbove = launcherTop - gap - height >= 12;
+    const top = fitsAbove
+      ? launcherTop - gap - height
+      : Math.min(launcherBottom + gap, vp.h - height - 12);
+    const rightAligned = launcherLeft + launcherSize - width;
+    const left = Math.min(Math.max(12, rightAligned), vp.w - width - 12);
+    return { top, left, width, height };
+  })();
 
   return (
     <>
@@ -136,7 +207,10 @@ export function CompanionAssistant() {
         dragConstraints={launchBounds}
         dragElastic={0.04}
         style={{ x: lx, y: ly }}
-        onDragEnd={() => saveDragPos("ma.companion.pos.v1", { x: lx.get(), y: ly.get() })}
+        onDragEnd={() => {
+          saveDragPos("ma.companion.pos.v1", { x: lx.get(), y: ly.get() });
+          forceRerender();
+        }}
         onPointerDown={(e) => dragControls.start(e)}
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "Close companion" : "Open AI companion — drag to move"}
@@ -154,23 +228,26 @@ export function CompanionAssistant() {
       </motion.button>
 
       <AnimatePresence>
-        {open && (
+        {open && panelStyle && (
           <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+            exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ type: "spring", stiffness: 280, damping: 26 }}
-            className="gradient-ring fixed bottom-24 right-4 z-[60] flex h-[min(72vh,560px)] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-3xl border border-white/40 bg-night-card/95 shadow-lift backdrop-blur-xl md:bottom-6 md:right-6"
+            style={panelStyle}
+            className="gradient-ring fixed z-[60] flex flex-col overflow-hidden rounded-3xl border border-white/40 bg-night-card/95 shadow-lift backdrop-blur-xl"
             role="dialog"
             aria-label="AI companion chat"
           >
             {/* Header */}
             <div className="flex items-center gap-3 border-b border-white/10 bg-gradient-to-r from-accent/20 to-transparent px-4 py-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-strong text-white shadow-soft">
-                <Heart className="h-5 w-5" />
+                <Terminal className="h-5 w-5" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-white">CareGiver Companion</p>
+                <p className="font-mono text-sm font-bold tracking-tight text-white">
+                  care-giver ~ companion
+                </p>
                 <p className="truncate text-xs text-white/60">
                   Listens · learns · helps · on this device
                 </p>
@@ -178,7 +255,7 @@ export function CompanionAssistant() {
               <button
                 type="button"
                 onClick={forget}
-                className="rounded-full px-2 py-1 text-xs font-semibold text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                className="rounded-full px-2 py-1 font-mono text-xs font-semibold text-white/60 transition-colors hover:bg-white/10 hover:text-white"
                 title="Forget what I've learned"
               >
                 Forget me
@@ -192,11 +269,10 @@ export function CompanionAssistant() {
                   {m.from === "ai" ? (
                     <div className="flex items-end gap-2">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-strong text-white">
-                        <Heart className="h-3.5 w-3.5" />
+                        <Terminal className="h-3.5 w-3.5" />
                       </span>
-                      <div
-                        className={`rounded-2xl rounded-bl-md bg-white/10 px-3.5 py-2.5 text-sm leading-snug text-white`}
-                      >
+                      <div className="font-mono text-[13px] leading-relaxed text-white">
+                        <span className="mr-1 select-none text-white/40">›</span>
                         {m.text}
                         {m.suggestGame && GAME_ROUTES[m.suggestGame as GameId] && (
                           <Link
@@ -211,6 +287,7 @@ export function CompanionAssistant() {
                   ) : (
                     <div className="flex justify-end">
                       <div className="max-w-[80%] rounded-2xl rounded-br-md bg-accent px-3.5 py-2.5 text-sm leading-snug text-white">
+                        <span className="mr-1 select-none opacity-60">you:</span>
                         {m.text}
                       </div>
                     </div>
@@ -234,8 +311,8 @@ export function CompanionAssistant() {
               ))}
               {typing && (
                 <div className="flex items-end gap-2">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-strong text-white">
-                    <Heart className="h-3.5 w-3.5" />
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-strong text-white">
+                    <Terminal className="h-3.5 w-3.5" />
                   </span>
                   <div className="flex gap-1 rounded-2xl rounded-bl-md bg-white/10 px-3.5 py-3">
                     <motion.span
@@ -262,17 +339,18 @@ export function CompanionAssistant() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                send(input);
+                void send(input);
               }}
               className="flex items-center gap-2 border-t border-white/10 p-3"
             >
+              <span className="select-none font-mono text-sm text-teal-300">$</span>
               <input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Talk to your companion…"
+                placeholder="ask me anything about CareGiver…"
                 aria-label="Message your companion"
-                className="min-h-[44px] flex-1 rounded-full border border-white/15 bg-white/5 px-4 text-sm text-white placeholder:text-white/40 focus:border-accent/60 focus:outline-none"
+                className="min-h-[44px] flex-1 rounded-full border border-white/15 bg-white/5 px-4 font-mono text-sm text-white placeholder:text-white/40 focus:border-accent/60 focus:outline-none"
               />
               <button
                 type="submit"

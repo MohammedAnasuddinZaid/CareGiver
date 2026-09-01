@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { mulberry32, shuffle } from "@/lib/games/rng";
 import type { GameStageProps } from "./faces-game";
+import { useLocale } from "@/hooks/use-locale";
+import { memoryCards, memoryLaneTexts } from "@/lib/i18n/games";
 
 /**
  * "Memory Lane" — Reminiscence Therapy, gamified.
@@ -46,153 +48,6 @@ interface MemoryCard {
   ask: string;
 }
 
-const CARDS: readonly MemoryCard[] = [
-  {
-    id: "radio",
-    scene: "📻",
-    tint: "from-amber-100 via-orange-50 to-rose-100",
-    title: "Evenings around the radio",
-    question: "When the family radio played in the evening, what did everyone do?",
-    correct: "Sat together and listened",
-    distractors: ["Went to bed early", "Switched it off", "Ran outside to play"],
-    story:
-      "The whole room grew quiet — one story at a time, carried into every home by a small wooden box.",
-    ask: "Ask your family: which radio show did they love most?",
-  },
-  {
-    id: "diya",
-    scene: "🪔",
-    tint: "from-orange-100 via-amber-50 to-yellow-100",
-    title: "Lamps at dusk",
-    question: "At dusk, what was lit first at the doorstep?",
-    correct: "A little lamp",
-    distractors: ["The television", "A torch", "The streetlight"],
-    story:
-      "One small flame at the doorway meant the day was closing — and tomorrow would be welcomed the same way.",
-    ask: "Ask your family: who lit the lamp at home each evening?",
-  },
-  {
-    id: "tea",
-    scene: "🫖",
-    tint: "from-stone-100 via-amber-50 to-orange-100",
-    title: "Tea time",
-    question: "In the evening, what did visitors almost always get first?",
-    correct: "A cup of tea",
-    distractors: ["Cold water", "A letter", "An umbrella"],
-    story:
-      "The kettle knew before anyone did — guests were coming, and the talk could begin.",
-    ask: "Ask your family: who made the best tea in the house?",
-  },
-  {
-    id: "cycle",
-    scene: "🚲",
-    tint: "from-sky-100 via-cyan-50 to-teal-100",
-    title: "The first bicycle",
-    question: "Learning to ride a bicycle, who usually ran alongside holding the seat?",
-    correct: "An elder brother or father",
-    distractors: ["Nobody at all", "The postman", "A neighbour's dog"],
-    story:
-      "Somewhere between wobbles and laughter came that sudden magic — riding alone, wind in the face.",
-    ask: "Ask your family: who taught them to ride a bicycle?",
-  },
-  {
-    id: "monsoon",
-    scene: "🌧️",
-    tint: "from-slate-100 via-sky-50 to-indigo-100",
-    title: "Monsoon mornings",
-    question: "After the first rain, what did children race to sail in the water?",
-    correct: "Paper boats",
-    distractors: ["Wooden elephants", "Kites", "Clay lamps"],
-    story:
-      "Newspaper folded just so, puddles turned into oceans — and rain became the best toy of all.",
-    ask: "Ask your family: what did they do on rainy afternoons?",
-  },
-  {
-    id: "storytime",
-    scene: "🌙",
-    tint: "from-indigo-100 via-violet-50 to-purple-100",
-    title: "Bedtime stories",
-    question: "At night, who told the stories that ended with 'and they lived happily'?",
-    correct: "Grandmother",
-    distractors: ["The milkman", "The school teacher", "Nobody"],
-    story:
-      "Demons, kings and clever sparrows — every night promised one more story, and one more reason to sleep fast.",
-    ask: "Ask your family: which story do they still remember?",
-  },
-  {
-    id: "wedding",
-    scene: "💃",
-    tint: "from-rose-100 via-pink-50 to-fuchsia-100",
-    title: "Wedding songs",
-    question: "At family weddings, what filled the courtyard all night?",
-    correct: "Songs and dancing",
-    distractors: ["Silence", "Homework", "Rain"],
-    story:
-      "Drums in the corner, aunties leading the line — weddings were measured in songs, not hours.",
-    ask: "Ask your family: which wedding song gets them dancing even now?",
-  },
-  {
-    id: "village",
-    scene: "🥭",
-    tint: "from-lime-100 via-green-50 to-emerald-100",
-    title: "Summer holidays",
-    question: "School summer holidays were most often spent…",
-    correct: "At grandparents' village",
-    distractors: ["In the classroom", "At the office", "Alone at home"],
-    story:
-      "Mangoes straight off the tree, cousins by the dozen, and two months that felt like years.",
-    ask: "Ask your family: where did they spend summer as children?",
-  },
-  {
-    id: "market",
-    scene: "🧺",
-    tint: "from-yellow-100 via-amber-50 to-lime-100",
-    title: "Market mornings",
-    question: "What did grandmother carry to the vegetable market?",
-    correct: "A cloth basket",
-    distractors: ["A suitcase", "A bucket", "An umbrella stand"],
-    story:
-      "Bargaining was an art, fresh coriander came free with goodwill, and the basket came home heavy.",
-    ask: "Ask your family: what was always bought fresh, never stored?",
-  },
-  {
-    id: "festival",
-    scene: "🎆",
-    tint: "from-purple-100 via-fuchsia-50 to-rose-100",
-    title: "Festival nights",
-    question: "During festivals, what did the whole sky wear?",
-    correct: "Sparkling lights",
-    distractors: ["Grey clouds", "Snow", "Rainbow flags"],
-    story:
-      "New clothes, sweets passed hand to hand, and lights bright enough to make the whole lane glow.",
-    ask: "Ask your family: which festival do they remember most fondly?",
-  },
-  {
-    id: "letters",
-    scene: "✉️",
-    tint: "from-teal-100 via-emerald-50 to-cyan-100",
-    title: "Letters from far away",
-    question: "Before telephones were common, how did families share good news?",
-    correct: "By post — a letter",
-    distractors: ["By video call", "By text message", "By email"],
-    story:
-      "The postman's bicycle was the internet of its day — one envelope could make the whole street celebrate.",
-    ask: "Ask your family: do they remember waiting for a letter?",
-  },
-  {
-    id: "swing",
-    scene: "🌳",
-    tint: "from-green-100 via-teal-50 to-emerald-100",
-    title: "Under the old tree",
-    question: "In the afternoon heat, where did elders gather to talk?",
-    correct: "Under the shady tree",
-    distractors: ["On the rooftop in the sun", "Inside the fridge", "At the bus stop"],
-    story:
-      "One big tree, a few cots, endless tea — the neighbourhood's parliament, open all afternoon.",
-    ask: "Ask your family: where did neighbours gather in their street?",
-  },
-];
-
 type Phase = "back" | "choose" | "story";
 
 export function MemoryLaneGame({
@@ -203,9 +58,11 @@ export function MemoryLaneGame({
 }: GameStageProps) {
   const level = Math.max(0, difficultyLevel(difficulty));
   const choiceCount = Math.min(4, 2 + Math.floor(level / 1.5));
+  const { locale } = useLocale();
 
   const [phase, setPhase] = useState<Phase>("back");
   const [picked, setPicked] = useState<string | null>(null);
+  const [lost, setLost] = useState<readonly string[]>([]);
   const [corrections, setCorrections] = useState(0);
   const doneRef = useRef(false);
   const timersRef = useRef<number[]>([]);
@@ -219,20 +76,24 @@ export function MemoryLaneGame({
   useEffect(() => () => clearTimers(), [clearTimers]);
 
   const item = useMemo(() => {
+    const cards = memoryCards(locale);
     const rand = mulberry32(itemKey * 15485863 + 11);
-    const cardIdx = Math.floor(rand() * CARDS.length);
-    const card = CARDS[cardIdx];
+    const cardIdx = Math.floor(rand() * cards.length);
+    const card = cards[cardIdx];
     return {
       card,
       options: shuffle([card.correct, ...card.distractors.slice(0, choiceCount - 1)], rand),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemKey, choiceCount]);
+  }, [itemKey, choiceCount, locale]);
+
+  const { takeMeBack, talkTogether } = useMemo(() => memoryLaneTexts(locale), [locale]);
 
   // Phase lifecycle per item.
   useEffect(() => {
     doneRef.current = false;
     setPicked(null);
+    setLost([]);
     setCorrections(0);
     setPhase("back");
     startTrial(`memorylane:${itemKey}:${item.card.id}`);
@@ -253,7 +114,14 @@ export function MemoryLaneGame({
   );
 
   const answer = (label: string): void => {
-    if (phase !== "choose" || picked !== null || doneRef.current) return;
+    if (
+      phase !== "choose" ||
+      picked !== null ||
+      lost.includes(label) ||
+      doneRef.current
+    ) {
+      return;
+    }
     if (label === item.card.correct) {
       setPicked(label);
       setPhase("story");
@@ -262,7 +130,9 @@ export function MemoryLaneGame({
     } else {
       const next = corrections + 1;
       setCorrections(next);
-      setPicked(label);
+      // Dim this option but keep the others playable — the player can
+      // keep trying the right answer instead of being stuck.
+      setLost((prev) => [...prev, label]);
       if (next >= 3) {
         // Three misses: reveal gently instead of letting frustration build.
         later(() => {
@@ -300,31 +170,35 @@ export function MemoryLaneGame({
         aria-live="polite"
         className="min-h-[56px] px-2 text-center text-lg font-bold leading-snug text-ink md:text-xl"
       >
-        {phase === "back" && "Take yourself back…"}
+        {phase === "back" && takeMeBack}
         {phase === "choose" && item.card.question}
         {phase === "story" && item.card.story}
       </p>
 
       {phase === "choose" && (
         <div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
-          {item.options.map((option) => (
-            <button
-              key={option}
-              onClick={() => answer(option)}
-              disabled={picked !== null}
-              aria-label={option}
-              className={
-                "min-h-[68px] rounded-3xl border-2 bg-surface px-4 py-3 text-center text-lg font-semibold leading-snug shadow-soft transition-all active:scale-[0.97] disabled:cursor-default " +
-                (picked === option
-                  ? option === item.card.correct
-                    ? "border-ok! bg-ok/10!"
-                    : "border-danger/60! bg-danger/5! opacity-55"
-                  : "border-line hover:border-accent hover:shadow-lift")
-              }
-            >
-              {option}
-            </button>
-          ))}
+          {item.options.map((option) => {
+            const isLost = lost.includes(option);
+            const isCorrectPick = picked === option;
+            return (
+              <button
+                key={option}
+                onClick={() => answer(option)}
+                disabled={isLost || picked !== null}
+                aria-label={option}
+                className={
+                  "min-h-[68px] rounded-3xl border-2 bg-surface px-4 py-3 text-center text-lg font-semibold leading-snug shadow-soft transition-all active:scale-[0.97] disabled:cursor-default " +
+                  (isLost
+                    ? "border-danger/60! bg-danger/5! opacity-55"
+                    : isCorrectPick
+                      ? "border-ok! bg-ok/10!"
+                      : "border-line hover:border-accent hover:shadow-lift")
+                }
+              >
+                {option}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -333,7 +207,7 @@ export function MemoryLaneGame({
           <p className="text-base font-semibold leading-relaxed text-ink">
             {item.card.ask}
           </p>
-          <p className="mt-1 text-sm font-medium text-accent">Talk about it together ♥</p>
+          <p className="mt-1 text-sm font-medium text-accent">{talkTogether}</p>
         </div>
       )}
     </div>

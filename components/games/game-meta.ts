@@ -125,13 +125,14 @@ export interface GameCategory {
   id: "remember" | "focus" | "think" | "find";
   /** Locale phrase key for the category heading. */
   titleKey: "catRemember" | "catFocus" | "catThink" | "catFind";
-  blurb: string;
+  /** Locale phrase key for the one-line category description. */
+  blurbKey: "catRememberBlurb" | "catFocusBlurb" | "catThinkBlurb" | "catFindBlurb";
 }
 
 /** Hub sections, in display order. */
 export const GAME_CATEGORIES: readonly GameCategory[] = [
-  { id: "remember", titleKey: "catRemember", blurb: "Faces, lists and tunes held in mind" },
-  { id: "focus", titleKey: "catFocus", blurb: "Attention, speed and steady hands" },
-  { id: "think", titleKey: "catThink", blurb: "Ordering, patterns and everyday thinking" },
-  { id: "find", titleKey: "catFind", blurb: "Locations and visual memory" },
+  { id: "remember", titleKey: "catRemember", blurbKey: "catRememberBlurb" },
+  { id: "focus", titleKey: "catFocus", blurbKey: "catFocusBlurb" },
+  { id: "think", titleKey: "catThink", blurbKey: "catThinkBlurb" },
+  { id: "find", titleKey: "catFind", blurbKey: "catFindBlurb" },
 ];

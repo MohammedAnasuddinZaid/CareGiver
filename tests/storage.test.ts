@@ -1,11 +1,13 @@
 ﻿import { beforeEach, describe, expect, it } from "vitest";
 import {
+  appendEnrollmentPhotos,
   clearAllData,
   createPerson,
   deletePerson,
   getAsset,
   getPeople,
   getPerson,
+  mergePersonInto,
   putAsset,
   removeEnrollmentPhoto,
   updatePerson,
@@ -121,6 +123,62 @@ describe("local profile service (IndexedDB)", () => {
     });
     await clearAllData();
     expect(await getPeople()).toHaveLength(0);
+  });
+
+  it("appendEnrollmentPhotos extends an existing profile atomically", async () => {
+    const person = await createPerson({
+      name: "Mom",
+      relationship: "Mother",
+      enrollmentPhotos: [{ id: "old", addedAt: "t" }],
+      descriptors: [descriptor(1)],
+    });
+    const blob = new Blob([new Uint8Array([9, 8, 7])], { type: "image/jpeg" });
+    const updated = await appendEnrollmentPhotos(person.id, [
+      { id: "new-left", blob, descriptor: descriptor(2) },
+      { id: "new-right", blob, descriptor: descriptor(3) },
+    ]);
+    expect(updated.descriptors).toHaveLength(3);
+    expect(updated.enrollmentPhotos.map((p) => p.id)).toEqual([
+      "old",
+      "new-left",
+      "new-right",
+    ]);
+    expect((await getAsset("new-left"))?.personId).toBe(person.id);
+    expect((await getAsset("new-right"))?.personId).toBe(person.id);
+  });
+
+  it("mergePersonInto folds assets + descriptors into the target and drops the source", async () => {
+    const mom = await createPerson({
+      name: "Mom",
+      relationship: "Mother",
+      enrollmentPhotos: [{ id: "m1", addedAt: "t1" }],
+      descriptors: [descriptor(1)],
+    });
+    const duplicate = await createPerson({
+      name: "Mom copy",
+      relationship: "Friend",
+      enrollmentPhotos: [
+        { id: "m2", addedAt: "t2" },
+        { id: "m3", addedAt: "t3" },
+      ],
+      descriptors: [descriptor(2), descriptor(3)],
+    });
+    await putAsset({ id: "m1", personId: mom.id, role: "enrollment", blob: new Blob(["a"]), createdAt: "t1" });
+    await putAsset({ id: "m2", personId: duplicate.id, role: "enrollment", blob: new Blob(["b"]), createdAt: "t2" });
+    await putAsset({ id: "m3", personId: duplicate.id, role: "enrollment", blob: new Blob(["c"]), createdAt: "t3" });
+
+    await mergePersonInto(duplicate.id, mom.id);
+
+    const merged = await getPerson(mom.id);
+    expect(merged).toBeDefined();
+    // Everything from the duplicate now lives under Mom.
+    expect(merged!.descriptors).toHaveLength(3);
+    expect(merged!.enrollmentPhotos.map((p) => p.id)).toEqual(["m1", "m2", "m3"]);
+    expect((await getAsset("m2"))?.personId).toBe(mom.id);
+    expect((await getAsset("m3"))?.personId).toBe(mom.id);
+    // Source profile is gone — duplicate identity no longer exists.
+    expect(await getPerson(duplicate.id)).toBeUndefined();
+    expect(await getPeople()).toHaveLength(1);
   });
 
   it("keeps recognition readiness honest", async () => {

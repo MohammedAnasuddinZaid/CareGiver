@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
   deduplicateFrameMatches,
+  findLookalikeProfiles,
   identifyFace,
   identifyFaceDetailed,
   selectPrimaryFace,
@@ -208,5 +209,93 @@ describe("deduplicateFrameMatches", () => {
     // The best match (distance 0.30, index 1) is kept
     expect(result[1].matched).toBe(true);
     expect(result[1].personId).toBe("mom");
+  });
+});
+
+describe("findLookalikeProfiles — enrollment-time duplicate detection", () => {
+  const momBase = unit(101);
+  const dadBase = unit(202);
+
+  it("flags a new set that clearly matches someone already enrolled", () => {
+    const newAngles = [0.18, 0.2, 0.22, 0.24].map((d, i) =>
+      atDistance(momBase, d, 900 + i),
+    );
+    const result = findLookalikeProfiles(
+      newAngles,
+      [
+        { id: "mom", descriptors: [momBase] },
+        { id: "dad", descriptors: [dadBase] },
+      ],
+      THRESHOLD,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.personId).toBe("mom");
+    expect(result!.votes).toBe(newAngles.length);
+  });
+
+  it("returns null when the new set is a stranger (above threshold)", () => {
+    // Random probes land ~sqrt(2) from everyone — well past the threshold.
+    const strangers = [0, 1, 2, 3].map((i) => unit(7000 + i));
+    const result = findLookalikeProfiles(
+      strangers,
+      [{ id: "mom", descriptors: [momBase] }],
+      THRESHOLD,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("needs a majority — a lone noisy capture can never force a merge", () => {
+    // Three new descriptors: two are clearly a stranger, one is mom-adjacent.
+    const set = [
+      unit(51),
+      unit(52),
+      atDistance(momBase, 0.2, 53),
+    ];
+    const result = findLookalikeProfiles(
+      set,
+      [
+        { id: "mom", descriptors: [momBase] },
+        { id: "dad", descriptors: [dadBase] },
+      ],
+      THRESHOLD,
+    );
+    // 1 of 3 votes < half → the old single-photo fix never suggests a merge.
+    expect(result).toBeNull();
+  });
+
+  it("tolerates mixed captures when the majority agrees on one person", () => {
+    // Four of six descriptors are mom at clean distances; two are noise.
+    const set = [
+      atDistance(momBase, 0.2, 61),
+      atDistance(momBase, 0.24, 62),
+      atDistance(momBase, 0.21, 63),
+      atDistance(momBase, 0.26, 64),
+      unit(71),
+      unit(72),
+    ];
+    const result = findLookalikeProfiles(
+      set,
+      [
+        { id: "mom", descriptors: [momBase] },
+        { id: "dad", descriptors: [dadBase] },
+      ],
+      THRESHOLD,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.personId).toBe("mom");
+    expect(result!.votes).toBe(4);
+  });
+
+  it("returns null for an empty or unenrolled set", () => {
+    expect(
+      findLookalikeProfiles([], [{ id: "mom", descriptors: [momBase] }], THRESHOLD),
+    ).toBeNull();
+    expect(
+      findLookalikeProfiles(
+        [atDistance(momBase, 0.2, 81)],
+        [],
+        THRESHOLD,
+      ),
+    ).toBeNull();
   });
 });

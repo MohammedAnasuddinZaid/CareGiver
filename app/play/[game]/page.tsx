@@ -42,37 +42,8 @@ import { EmotionGame } from "@/components/games/emotion-game";
 import { TargetGame } from "@/components/games/target-game";
 import { OrderGame } from "@/components/games/order-game";
 import { GameCoach } from "@/components/games/game-coach";
-
-const INSTRUCTIONS: Record<GameId, string> = {
-  faces: "Look at the photo — who is this person?",
-  names: "Remember each face and name — they will ask you after a while.",
-  memorylane: "Travel back in time — remember the old, happy days.",
-  market: "First remember the basket. Then find every item on the shelf.",
-  routine: "Tap the cards in the order they happen in your morning.",
-  loom: "The strip follows a pattern. Choose what comes next.",
-  drums: "Tap when you hear the drum 🥁 — stay still for the horn 📣",
-  soundmatch: "Listen to the sound, then tap what made it.",
-  spatial: "Watch where things are placed, then find the one asked for.",
-  pairs: "Flip two cards at a time and find every matching pair.",
-  bazaar: "Add the prices, then choose the correct change.",
-  oddone: "One picture does not belong with the rest — tap it.",
-  sortit: "Send each item to its right basket.",
-  stroop: "Tap the COLOR of the text, not what the word says.",
-  trail: "Tap the numbers in order: 1, 2, 3…",
-  melody: "Listen to the tune, then tap the same notes back.",
-  sequence: "Watch the order, then tap the items in the same order.",
-  clock: "Read the clock and tap the matching time.",
-  spot: "One tile changed after you looked away — tap the one that changed.",
-  wordrecall: "These words were shown earlier — tap the ones you saw.",
-  follow: "Watch the lights, then tap the pads in the same order.",
-  shadow: "Tap the shape that matches the target.",
-  reaction: "Tap the moment the screen turns green — not before.",
-  wordbuilder: "Build the word by tapping the letters in order.",
-  category: "Drop each item into the group it belongs to.",
-  emotion: "Choose the feeling that matches the face.",
-  target: "Scan the grid and tap the one that matches the target.",
-  order: "Tap the steps in their natural order.",
-};
+import { useLocale } from "@/hooks/use-locale";
+import { gameInstruction, gameTitle } from "@/lib/i18n/games";
 
 const GAME_COMPONENTS: Record<
   GameId,
@@ -108,37 +79,6 @@ const GAME_COMPONENTS: Record<
   order: OrderGame,
 };
 
-const TITLES: Record<GameId, string> = {
-  faces: "Who Is In The Photo?",
-  names: "Remembering Names",
-  memorylane: "Memory Lane",
-  market: "Market Basket",
-  pairs: "Card Pairs",
-  melody: "Repeat the Tune",
-  drums: "Festival Drums",
-  soundmatch: "Sound Match",
-  stroop: "Color Trap",
-  trail: "Number Trail",
-  routine: "Morning Routine",
-  loom: "Pattern Loom",
-  oddone: "Odd One Out",
-  sortit: "Sorting Station",
-  bazaar: "Bazaar Maths",
-  spatial: "Where Did I Keep It?",
-  sequence: "Pattern Sequence",
-  clock: "Telling the Time",
-  spot: "Spot the Change",
-  wordrecall: "Word Recall",
-  follow: "Follow the Lights",
-  shadow: "Shadow Match",
-  reaction: "Quick Tap",
-  wordbuilder: "Word Builder",
-  category: "Category Sort",
-  emotion: "Feelings Match",
-  target: "Find the Target",
-  order: "Put in Order",
-};
-
 /**
  * Single dynamic host route for all six games. Keeps one session runner
  * and one shell; games only supply their stage component.
@@ -171,6 +111,7 @@ function GameHost({ gameId }: { gameId: GameId }) {
   const level = rawLevel === "easy" || rawLevel === "hard" ? rawLevel : "moderate";
   const session = useGameSession({ game: gameId, level });
   const { settings } = useSettings();
+  const { locale } = useLocale();
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [coachTrials, setCoachTrials] = useState<{ correct: boolean }[]>([]);
   const Stage = GAME_COMPONENTS[gameId];
@@ -216,8 +157,8 @@ function GameHost({ gameId }: { gameId: GameId }) {
   return (
     <>
       <GameChrome
-        title={TITLES[gameId]}
-        instruction={INSTRUCTIONS[gameId]}
+        title={gameTitle(gameId, locale)}
+        instruction={gameInstruction(gameId, locale)}
         badge={gamesConfig.levels[level].label}
         current={session.itemIndex}
         total={session.totalItems}

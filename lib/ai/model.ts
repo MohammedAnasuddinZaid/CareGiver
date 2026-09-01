@@ -2,6 +2,7 @@ import { GAME_TITLES } from "@/components/games/game-meta";
 import { GAME_META, type GameId } from "@/lib/games/types";
 import { bestDoc, TOPIC_QUESTIONS } from "./knowledge";
 import type { AIProfile } from "./store";
+import type { DeviceContext } from "./context";
 
 export type CompanionTone =
   | "greet"
@@ -113,15 +114,79 @@ function nameCallout(profile: AIProfile): string {
 }
 
 /**
+ * Builds an accurate answer for "my …" questions from the live device
+ * context. Returns null when the context isn't ready (so the caller falls
+ * back to the static knowledge-base reply).
+ */
+function personalAnswer(
+  kind: "people" | "reminders" | "progress",
+  ctx: DeviceContext,
+): string | null {
+  if (!ctx.ready) return null;
+
+  if (kind === "people") {
+    const p = ctx.people;
+    if (p.total === 0) {
+      return "You haven't added anyone to People yet. When you add a few clear photos of family or friends, Companion Mode can recognise them and say their name.";
+    }
+    const nameList =
+      p.names.length > 0 ? ` I know ${p.names.join(", ")}${p.names.length > 1 ? "" : ""}.` : "";
+    const recognizedNote =
+      p.recognized < p.total
+        ? ` ${p.total - p.recognized} of them ${p.total - p.recognized === 1 ? "doesn't" : "don't"} have photos yet, so I might not recognise ${
+            p.total - p.recognized === 1 ? "them" : "those"
+          } in Companion Mode just yet.`
+        : "";
+    return `You have ${p.total} ${p.total === 1 ? "person" : "people"} saved on this device.${nameList}${recognizedNote}`;
+  }
+
+  if (kind === "reminders") {
+    const r = ctx.reminders;
+    if (r.total === 0) {
+      return "You don't have any reminders set yet. The Reminders page lets you set gentle prompts for medicine, meals, calls or walks — all kept on this device.";
+    }
+    const enabledNote =
+      r.enabled < r.total
+        ? ` ${r.total - r.enabled} of them ${r.total - r.enabled === 1 ? "is" : "are"} paused for now.`
+        : "";
+    const list =
+      r.titles.length > 0 ? ` They are: ${r.titles.join(", ")}.` : "";
+    const next =
+      r.nextFew.length > 0
+        ? ` Next up: ${r.nextFew.map((n) => `${n.title} (${n.time})`).join(", ")}.`
+        : "";
+    return `You have ${r.total} ${r.total === 1 ? "reminder" : "reminders"} on this device.${list}${next}${enabledNote}`;
+  }
+
+  if (kind === "progress") {
+    const g = ctx.progress;
+    if (g.totalSessions === 0) {
+      return "You haven't played any games yet. The Games page has gentle exercises for memory, attention, thinking and finding — start on Easy whenever you like.";
+    }
+    const recent =
+      g.recentGames.length > 0 ? ` Lately you've been playing ${g.recentGames.join(", ")}.` : "";
+    return `You've played ${g.gamesPlayed} ${g.gamesPlayed === 1 ? "session" : "sessions"} across ${
+      g.uniqueGames
+    } ${g.uniqueGames === 1 ? "game" : "games"}, with ${g.totalTrials} ${g.totalTrials === 1 ? "turn" : "turns"} all stored privately here.${recent}`;
+  }
+
+  return null;
+}
+
+/**
  * The on-device companion "brain". A compact, explainable intent + affect
  * model layered on top of a retrieval knowledge base: it answers real
  * questions about CareGiver (privacy, games, Companion Mode, reminders,
  * progress, settings) from a fixed, reviewed set — so it can never invent
  * facts or call a server — and it stays warm and personal the rest of the time.
+ *
+ * `ctx` carries the person's actual on-device data (people, reminders,
+ * progress) so the companion can answer "my …" questions accurately.
  */
 export function respond(
   input: CompanionInput,
   profile: AIProfile,
+  ctx?: DeviceContext | null,
 ): { reply: CompanionReply; patch: LearningPatch } {
   const patch: LearningPatch = { turns: profile.turns + 1 };
   const lower = (input.message ?? "").toLowerCase();
@@ -131,6 +196,25 @@ export function respond(
   // --- Contextual opening (no typed message) ---
   if (!input.message || input.message.trim().length === 0) {
     return { reply: routeTip(input.route, profile, input.lastOutcome), patch };
+  }
+
+  // --- Personal-data questions answered from live on-device state. ---
+  if (doc?.personal && ctx) {
+    const personal = personalAnswer(doc.personal, ctx);
+    if (personal) {
+      return {
+        reply: {
+          text: personal,
+          tone: "suggest",
+          quick: [
+            doc.personal === "people" ? "How do I add a person?" : TOPIC_QUESTIONS.slice(0, 3)[0],
+            ...TOPIC_QUESTIONS.slice(0, 2),
+          ],
+          suggestGame: doc.personal === "people" ? "faces" : undefined,
+        },
+        patch,
+      };
+    }
   }
 
   const { intent } = scoreIntents(input.message);
