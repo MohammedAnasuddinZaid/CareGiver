@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import {
+  Bot,
   Brain,
   Heart,
   House,
@@ -18,12 +19,12 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ReminderAlertOverlay } from "@/components/reminders/reminder-alert-overlay";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { openInstallPrompt } from "@/components/pwa/install-prompt";
-import { CompanionAssistant } from "@/components/ai/companion-assistant";
 
 const NAV = [
   { href: "/", label: "Home", icon: House },
   { href: "/caregiver", label: "People", icon: Heart },
   { href: "/play", label: "Games", icon: Brain },
+  { href: "/assistant", label: "Assistant", icon: Bot },
   { href: "/reminders", label: "Reminders", icon: CalendarClock },
   { href: "/analytics", label: "Progress", icon: LineChart },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
@@ -33,7 +34,8 @@ const MOBILE_NAV = [
   { href: "/", label: "Home", icon: House },
   { href: "/caregiver", label: "People", icon: Heart },
   { href: "/play", label: "Games", icon: Brain },
-  { href: "/recognition", label: "Companion", icon: ScanFace, center: true },
+  { href: "/recognition", label: "Face Mode", icon: ScanFace, center: true },
+  { href: "/assistant", label: "AI", icon: Bot },
   { href: "/reminders", label: "Alerts", icon: CalendarClock },
   { href: "/analytics", label: "Progress", icon: LineChart },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
@@ -53,7 +55,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="relative min-h-screen bg-night">
         {children}
         <ReminderAlertOverlay />
-        <CompanionAssistant />
       </main>
     );
   }
@@ -134,7 +135,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Primary mobile"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-line/70 bg-canvas/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden"
       >
-        <div className="grid grid-cols-7">
+        <div className="grid grid-cols-8">
           {MOBILE_NAV.map(({ href, label, icon: Icon, ...rest }) => {
             const active = isActive(pathname, href);
             const companion = "center" in rest && rest.center === true;
@@ -158,8 +159,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </div>
       </nav>
-
-      <CompanionAssistant />
     </div>
   );
 }

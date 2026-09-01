@@ -13,7 +13,7 @@ export interface KBDoc {
   suggest?: GameId;
   /** When set, this doc is answered from live on-device data instead of the
    *  static `answer`. The answer string serves as a no-data fallback. */
-  personal?: "people" | "reminders" | "progress";
+  personal?: "people" | "reminders" | "progress" | "plan" | "reports" | "suggest";
 }
 
 /**
@@ -249,6 +249,62 @@ const DOCS: KBDoc[] = [
     suggest: "faces",
   },
   // --- Personal, device-specific questions (answered from live data) ---
+  {
+    id: "plan-my-day",
+    keywords: [
+      "plan my day",
+      "plan our day",
+      "daily plan",
+      "today's plan",
+      "plan today",
+      "what should i do today",
+      "what to do today",
+      "plan a day",
+      "my day",
+      "today's routine",
+    ],
+    personal: "plan",
+    answer:
+      "Here's a gentle shape for today: weave in a couple of short games (5–10 minutes on Easy) around any reminders you've set — medicine, meals, walks or calls. Small, steady steps are what nourish the mind.",
+    tone: "suggest",
+  },
+  {
+    id: "my-reports",
+    keywords: [
+      "read my reports",
+      "my reports",
+      "my report",
+      "report",
+      "summary of my",
+      "progress report",
+      "show my report",
+      "tell me my report",
+      "how did i do",
+    ],
+    personal: "reports",
+    answer:
+      "I don't have a report yet because there are no completed sessions to read. Play any game on Easy — even a couple of minutes — and I'll have something warm to report back to you.",
+    tone: "coach",
+  },
+  {
+    id: "suggest-game",
+    keywords: [
+      "suggest a game",
+      "suggest",
+      "recommend",
+      "which game should i",
+      "which game today",
+      "what should i play",
+      "pick a game",
+      "good game for me",
+      "what to play",
+      "game for today",
+    ],
+    personal: "suggest",
+    answer:
+      "Today I'd suggest starting on Easy — the exact game depends on which area has had the least practice this week. Ask me to suggest a game and I'll read your recent sessions first.",
+    tone: "suggest",
+  },
   {
     id: "my-people",
     keywords: [

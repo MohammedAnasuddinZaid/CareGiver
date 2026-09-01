@@ -119,7 +119,7 @@ function nameCallout(profile: AIProfile): string {
  * back to the static knowledge-base reply).
  */
 function personalAnswer(
-  kind: "people" | "reminders" | "progress",
+  kind: "people" | "reminders" | "progress" | "plan" | "reports" | "suggest",
   ctx: DeviceContext,
 ): string | null {
   if (!ctx.ready) return null;
@@ -170,6 +170,71 @@ function personalAnswer(
     } ${g.uniqueGames === 1 ? "game" : "games"}, with ${g.totalTrials} ${g.totalTrials === 1 ? "turn" : "turns"} all stored privately here.${recent}`;
   }
 
+  if (kind === "plan") {
+    const rem = ctx.reminders;
+    const sug = ctx.progress.suggestedGameIds;
+    const parts: string[] = [];
+    if (rem.nextFew.length > 0) {
+      parts.push(
+        `Here's a gentle plan for today: first, ${rem.nextFew
+          .map((r) => `${r.title} at ${r.time}`)
+          .join(", ")}.`,
+      );
+    } else if (rem.total > 0) {
+      parts.push(
+        `You have ${rem.total} ${rem.total === 1 ? "reminder" : "reminders"} on this device but nothing upcoming today, so the day is yours.`,
+      );
+    } else {
+      parts.push(
+        "Today is wide open — no reminders are set, so the time is yours to spend gently.",
+      );
+    }
+    if (sug.length > 0) {
+      const titles = sug.map((id) => GAME_TITLES[id] ?? id);
+      parts.push(
+        `For a few quiet minutes of exercise, I'd suggest ${titles.join(" or ")} on Easy.`,
+      );
+    } else {
+      parts.push(
+        "For a few quiet minutes of exercise, any game on Easy is a lovely start — Faces is always a warm choice.",
+      );
+    }
+    parts.push("Short and steady beats long and rare — even five minutes nourishes the mind.");
+    return parts.join(" ");
+  }
+
+  if (kind === "reports") {
+    const g = ctx.progress;
+    if (g.totalSessions === 0) {
+      return "I don't have a report yet because there are no completed sessions to read. Play any game on Easy — even a couple of minutes — and I'll have something warm to report back to you.";
+    }
+    const s = (n: number) => (n === 1 ? "" : "s");
+    const byGame =
+      g.byGame.length > 0
+        ? ` Your most-played: ${g.byGame
+            .slice(0, 3)
+            .map((b) => `${b.title} (${b.sessions}×)`)
+            .join(", ")}.`
+        : "";
+    const strength = g.strengthDomain
+      ? ` Your strongest area so far is ${g.strengthDomain}.`
+      : "";
+    return `Here's your report: ${g.gamesPlayed} session${s(g.gamesPlayed)} across ${
+      g.uniqueGames
+    } game${s(g.uniqueGames)} and ${g.totalTrials} turn${s(g.totalTrials)} in total — all kept privately here.${byGame}${strength} Remember: every choice is a step, and nothing here is judged.`;
+  }
+
+  if (kind === "suggest") {
+    const sug = ctx.progress.suggestedGameIds;
+    if (sug.length === 0) {
+      return "Every game can help on Easy. Why not start with Faces — it keeps the names we love closest.";
+    }
+    const titles = sug.map((id) => GAME_TITLES[id] ?? id);
+    return `Reading your sessions, I'd suggest ${titles.join(", ")} on Easy — ${
+      sug.length === 1 ? "it" : "they"
+    } touch the areas that have had the least practice lately. No hurry, no marks — just a gentle stretch.`;
+  }
+
   return null;
 }
 
@@ -205,12 +270,12 @@ export function respond(
       return {
         reply: {
           text: personal,
-          tone: "suggest",
-          quick: [
-            doc.personal === "people" ? "How do I add a person?" : TOPIC_QUESTIONS.slice(0, 3)[0],
-            ...TOPIC_QUESTIONS.slice(0, 2),
-          ],
-          suggestGame: doc.personal === "people" ? "faces" : undefined,
+          tone: doc.personal === "reports" ? "coach" : "suggest",
+          quick: TOPIC_QUESTIONS.slice(0, 3),
+          suggestGame:
+            doc.personal === "people"
+              ? "faces"
+              : (ctx.progress.suggestedGameIds[0] ?? undefined),
         },
         patch,
       };
@@ -382,6 +447,18 @@ export function routeTip(
     };
   }
   const path = route ?? "/";
+  if (path.startsWith("/assistant")) {
+    return {
+      text: `Welcome to my home page. Ask me to plan your day, read your reports or suggest a game — or type any question about how CareGiver works.`,
+      tone: "greet",
+      quick: [
+        "Plan my day",
+        "Read my reports",
+        "Suggest a game",
+        "Is my data private?",
+      ],
+    };
+  }
   if (path.startsWith("/play/")) {
     const id = path.split("/play/")[1].split("?")[0] as GameId;
     const title = GAME_TITLES[id];
