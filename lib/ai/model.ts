@@ -1,4 +1,5 @@
 import { GAME_TITLES } from "@/components/games/game-meta";
+import { DOMAIN_INFO } from "@/lib/games/config";
 import { GAME_META, type GameId } from "@/lib/games/types";
 import { bestDoc, TOPIC_QUESTIONS } from "./knowledge";
 import type { AIProfile } from "./store";
@@ -119,7 +120,14 @@ function nameCallout(profile: AIProfile): string {
  * back to the static knowledge-base reply).
  */
 function personalAnswer(
-  kind: "people" | "reminders" | "progress" | "plan" | "reports" | "suggest",
+  kind:
+    | "people"
+    | "reminders"
+    | "progress"
+    | "plan"
+    | "reports"
+    | "suggest"
+    | "improving",
   ctx: DeviceContext,
 ): string | null {
   if (!ctx.ready) return null;
@@ -217,11 +225,43 @@ function personalAnswer(
             .join(", ")}.`
         : "";
     const strength = g.strengthDomain
-      ? ` Your strongest area so far is ${g.strengthDomain}.`
+      ? ` Your most-practiced area is ${DOMAIN_INFO[g.strengthDomain]?.label ?? g.strengthDomain}.`
       : "";
-    return `Here's your report: ${g.gamesPlayed} session${s(g.gamesPlayed)} across ${
-      g.uniqueGames
-    } game${s(g.uniqueGames)} and ${g.totalTrials} turn${s(g.totalTrials)} in total — all kept privately here.${byGame}${strength} Remember: every choice is a step, and nothing here is judged.`;
+    return `Here's your gentle report: you have ${g.gamesPlayed} completed session${s(
+      g.gamesPlayed,
+    )} across ${g.uniqueGames} different kinds of games, with ${g.totalTrials} turns in all — every one kept privately on this device.${byGame}${strength} Remember: every choice is a step, and nothing here is judged.`;
+  }
+
+  if (kind === "improving") {
+    const g = ctx.progress;
+    if (g.totalSessions === 0) {
+      return "I can't tell you yet because there are no completed sessions to read. Play any game on Easy a few times and I'll be able to give you a warm, honest answer about your progress.";
+    }
+    const acc =
+      g.accuracy == null
+        ? ""
+        : ` In your recent sessions you were getting around ${Math.round(
+            g.accuracy * 100,
+          )}% of the turns right, which is a truly solid effort.`;
+    const lines: string[] = [];
+    for (const d of g.domains.slice(0, 3)) {
+      const label = cap(DOMAIN_INFO[d.domain]?.label ?? d.domain);
+      if (d.trend === "improving") lines.push(`• ${label} — clearly improving!`);
+      else if (d.trend === "declining")
+        lines.push(`• ${label} — a little harder this week; that's normal.`);
+      else if (d.trend === "steady") lines.push(`• ${label} — steady and solid.`);
+      else lines.push(`• ${label} — early days, room to grow.`);
+    }
+    const gentle =
+      g.domains.some((d) => d.trend === "declining")
+        ? "Not to worry — waves are part of the journey. A lighter Easy session today, then a good rest."
+        : "You're doing beautifully — keep the gentle, steady rhythm going.";
+    const nudge =
+      g.suggestedGameIds[0] != null
+        ? `\n\nWould today be a good day for ${GAME_TITLES[g.suggestedGameIds[0]]} on Easy?`
+        : "";
+    const linesText = lines.length > 0 ? `\n\nHere's how things look:\n${lines.join("\n")}` : "";
+    return `The short answer: yes, the little-and-often rhythm builds.${acc}${linesText}${nudge}\n\n${gentle}`;
   }
 
   if (kind === "suggest") {
@@ -270,7 +310,7 @@ export function respond(
       return {
         reply: {
           text: personal,
-          tone: doc.personal === "reports" ? "coach" : "suggest",
+          tone: doc.personal === "reports" || doc.personal === "improving" ? "coach" : "suggest",
           quick: TOPIC_QUESTIONS.slice(0, 3),
           suggestGame:
             doc.personal === "people"
@@ -449,10 +489,11 @@ export function routeTip(
   const path = route ?? "/";
   if (path.startsWith("/assistant")) {
     return {
-      text: `Welcome to my home page. Ask me to plan your day, read your reports or suggest a game — or type any question about how CareGiver works.`,
+      text: `Hi! I'm your CareGiver Assistant — here to plan your day, read your progress, suggest games and answer anything about how this app works. Everything I learn stays on this device. What would you like to start with?`,
       tone: "greet",
       quick: [
         "Plan my day",
+        "Am I improving?",
         "Read my reports",
         "Suggest a game",
         "Is my data private?",

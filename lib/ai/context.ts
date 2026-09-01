@@ -16,7 +16,7 @@ import { getAllSessions, getRecentSessions } from "@/lib/storage/progress";
 import { getReminders } from "@/lib/storage/reminders";
 import { loadSettings } from "@/lib/settings/settings";
 import { GAME_TITLES } from "@/components/games/game-meta";
-import { GAME_META, type GameId, type SkillDomain } from "@/lib/games/types";
+import { GAME_META, SKILL_DOMAINS, type GameId, type SkillDomain } from "@/lib/games/types";
 
 export interface DeviceContext {
   /** True when local storage/data was reachable at gather time. */
@@ -44,6 +44,17 @@ export interface DeviceContext {
     strengthDomain: SkillDomain | null;
     /** Per-game tally for richer reports. */
     byGame: { id: GameId; title: string; sessions: number; lastPlayedAt: number }[];
+    /** Fraction of all recorded turns answered correctly (null before any play). */
+    accuracy: number | null;
+    /** Per-domain accuracy + trend powering "am I improving?" answers. */
+    domains: {
+      domain: SkillDomain;
+      /** Distinct sessions that touched this domain. */
+      sessions: number;
+      trials: number;
+      accuracy: number | null;
+      trend: "improving" | "steady" | "declining" | "early";
+    }[];
   };
   settings: {
     voiceEnabled: boolean;
@@ -67,6 +78,8 @@ const EMPTY: DeviceContext = {
     suggestedGameIds: [],
     strengthDomain: null,
     byGame: [],
+    accuracy: null,
+    domains: [],
   },
   settings: {
     voiceEnabled: true,
@@ -142,6 +155,50 @@ export async function gatherContext(): Promise<DeviceContext> {
       }))
       .sort((a, b) => b.sessions - a.sessions)
       .slice(0, 8);
+
+    // Per-domain accuracy and trend — compare earlier turns against recent
+    // turns (in play order) so "am I improving?" has a real answer to lean on.
+    const domainTrack: Record<string, { sessionIds: Set<string>; correct: boolean[] }> = {};
+    let correctTotal = 0;
+    let trialsTotal = 0;
+    for (const s of sessions) {
+      for (const t of s.trials) {
+        const d = domainTrack[t.domain] ?? { sessionIds: new Set<string>(), correct: [] };
+        d.sessionIds.add(s.id);
+        d.correct.push(t.correct === true);
+        domainTrack[t.domain] = d;
+      }
+    }
+    const domains: NonNullable<(typeof ctx.progress)["domains"]> = [];
+    for (const dom of SKILL_DOMAINS) {
+      const d = domainTrack[dom];
+      if (!d || d.correct.length === 0) continue;
+      const n = d.correct.length;
+      const good = d.correct.filter(Boolean).length;
+      correctTotal += good;
+      trialsTotal += n;
+      let trend: "improving" | "steady" | "declining" | "early" = "early";
+      if (n >= 8 && d.sessionIds.size >= 2) {
+        const k = Math.ceil(n * 0.4);
+        const early = d.correct.slice(0, k).filter(Boolean).length / k;
+        const lateArr = d.correct.slice(Math.max(k, n - k));
+        const late = lateArr.length > 0 ? lateArr.filter(Boolean).length / lateArr.length : early;
+        const delta = late - early;
+        trend = delta >= 0.08 ? "improving" : delta <= -0.08 ? "declining" : "steady";
+      }
+      domains.push({
+        domain: dom,
+        sessions: d.sessionIds.size,
+        trials: n,
+        accuracy: Math.round((good / n) * 100) / 100,
+        trend,
+      });
+    }
+    domains.sort(
+      (a, b) => b.sessions - a.sessions || (b.accuracy ?? 0) - (a.accuracy ?? 0),
+    );
+    ctx.progress.accuracy = trialsTotal > 0 ? correctTotal / trialsTotal : null;
+    ctx.progress.domains = domains;
 
     // Which skill area has had the least practice → suggest from there.
     const domainSessions = new Map<SkillDomain, number>();

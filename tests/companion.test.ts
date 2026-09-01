@@ -19,6 +19,8 @@ function ctx(overrides: Partial<DeviceContext> = {}): DeviceContext {
       suggestedGameIds: [],
       strengthDomain: null,
       byGame: [],
+      accuracy: null,
+      domains: [],
     },
     settings: {
       voiceEnabled: true,
@@ -54,6 +56,11 @@ const c = ctx({
       { id: "faces", title: "Memory", sessions: 2, lastPlayedAt: 10 },
       { id: "pairs", title: "Same Face", sessions: 1, lastPlayedAt: 5 },
     ],
+    accuracy: 0.75,
+    domains: [
+      { domain: "memory", sessions: 2, trials: 8, accuracy: 0.75, trend: "improving" },
+      { domain: "working", sessions: 1, trials: 4, accuracy: 0.75, trend: "early" },
+    ],
   },
 });
 
@@ -69,10 +76,18 @@ describe("CareGiver assistant on /assistant", () => {
 
   it("reads reports with per-game tally and strongest area", () => {
     const { reply } = respond({ message: "Read my reports", route: "/assistant" }, emptyProfile(), c);
-    expect(reply.text).toContain("3 sessions");
+    expect(reply.text).toContain("3 completed sessions");
     expect(reply.text).toContain("Memory (2×)");
-    expect(reply.text).toContain("memory");
+    expect(reply.text).toContain("Remembering people & moments");
     expect(reply.tone).toBe("coach");
+  });
+
+  it("answers am-I-improving with a supportive real analysis", () => {
+    const { reply } = respond({ message: "Am I improving?", route: "/assistant" }, emptyProfile(), c);
+    expect(reply.text).toContain("75%");
+    expect(reply.text).toContain("Remembering people & moments");
+    expect(reply.text).toContain("clearly improving");
+    expect(reply.suggestGame).toBe("faces");
   });
 
   it("suggests a game based on least-practiced areas", () => {
@@ -108,5 +123,29 @@ describe("knowledge base personal intents", () => {
   });
   it("classifies game-suggestion questions", () => {
     expect(bestDoc("suggest a game for me")?.id).toBe("suggest-game");
+  });
+  it("classifies improving questions", () => {
+    expect(bestDoc("am i improving?")?.personal).toBe("improving");
+  });
+});
+
+describe("extended knowledge base", () => {
+  it("points to the right games for an area", () => {
+    expect(bestDoc("which game helps memory")?.id).toBe("area-guide");
+  });
+  it("advises on session length", () => {
+    expect(bestDoc("how long should i play?")?.id).toBe("how-much-play");
+  });
+  it("holds the line on medical claims", () => {
+    expect(bestDoc("does it cure dementia?")?.id).toBe("medical-disclaimer");
+  });
+  it("recommends a doctor for new symptoms", () => {
+    expect(bestDoc("when to see a doctor?")?.id).toBe("see-doctor");
+  });
+  it("reassures that no account is needed", () => {
+    expect(bestDoc("do i need an account?")?.id).toBe("no-account");
+  });
+  it("explains the condition gently", () => {
+    expect(bestDoc("what is dementia?")?.id).toBe("what-is-dementia");
   });
 });

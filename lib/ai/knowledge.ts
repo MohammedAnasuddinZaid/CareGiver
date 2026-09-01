@@ -13,7 +13,7 @@ export interface KBDoc {
   suggest?: GameId;
   /** When set, this doc is answered from live on-device data instead of the
    *  static `answer`. The answer string serves as a no-data fallback. */
-  personal?: "people" | "reminders" | "progress" | "plan" | "reports" | "suggest";
+  personal?: "people" | "reminders" | "progress" | "plan" | "reports" | "suggest" | "improving";
 }
 
 /**
@@ -222,7 +222,6 @@ const DOCS: KBDoc[] = [
       "purpose",
       "designed for",
       "carer",
-      "dementia",
       "memory loss",
     ],
     answer:
@@ -408,6 +407,257 @@ const DOCS: KBDoc[] = [
     answer:
       "These games are gentle, everyday exercises for the kinds of thinking we use all the time — remembering names, staying on task, planning a routine and finding things. There's no pass or fail; keeping your mind active in small, steady steps is what matters.",
     tone: "coach",
+  },
+  // --- Personal progress: is the person improving? (answered from live data) ---
+  {
+    id: "is-improving",
+    keywords: [
+      "am i improving",
+      "am i getting better",
+      "is my report good",
+      "is my report ok",
+      "am i doing good",
+      "am i doing well",
+      "improving",
+      "getting better",
+      "has my memory improved",
+      "progress trend",
+      "how is my progress",
+      "improved",
+    ],
+    personal: "improving",
+    answer:
+      "I can't tell you yet — there are no completed sessions to read. Play any game on Easy a few times and I'll be able to look at your progress and give you a warm, honest answer.",
+    tone: "coach",
+  },
+  // --- Gentle daily-life guidance (short, kind, non-medical) ---
+  {
+    id: "how-much-play",
+    keywords: [
+      "how long should i play",
+      "how often should i play",
+      "how many times a day",
+      "how much time",
+      "how many games a day",
+      "how long is a game",
+      "best time to play",
+      "too much",
+      "play every day",
+    ],
+    answer:
+      "Short and steady wins: about 5–15 minutes on Easy, a couple of times a day, is plenty — like a gentle walk for the mind. Stop whenever you want; there's no quota to meet.",
+    tone: "suggest",
+    suggest: "faces",
+  },
+  {
+    id: "caregiver-support",
+    keywords: [
+      "how can i help my",
+      "how do i help my",
+      "caregiver",
+      "carer",
+      "taking care of someone",
+      "support my family",
+      "help my mom",
+      "help my dad",
+      "help my mum",
+      "help my wife",
+      "help my husband",
+      "help my grandmother",
+      "caregiver tips",
+      "look after myself",
+      "burnout",
+      "caring for someone",
+    ],
+    answer:
+      "Being a carer is a labour of love, and your own wellbeing matters too. Small wins: sit and play one Easy game together, keep the person to familiar routines, speak slowly and warmly, and give yourself rest without guilt. You can't pour from an empty cup — take a few minutes for yourself each day.",
+    tone: "empathize",
+  },
+  {
+    id: "medical-disclaimer",
+    keywords: [
+      "does it cure",
+      "is it a cure",
+      "will it fix",
+      "is it medicine",
+      "medical",
+      "replacement for a doctor",
+      "stop dementia",
+      "reverse memory loss",
+      "fix my memory",
+      "does this heal",
+    ],
+    answer:
+      "CareGiver is a companion tool, not a medicine. It can't cure or stop a medical condition — it gently keeps the mind active and the days steadier. Please always lean on your doctor for diagnosis, medication and anything you're unsure about.",
+    tone: "coach",
+  },
+  {
+    id: "see-doctor",
+    keywords: [
+      "when to see a doctor",
+      "should i see a doctor",
+      "go to the doctor",
+      "see a doctor",
+      "talk to my doctor",
+      "ask my doctor",
+      "medical advice",
+      "new symptoms",
+    ],
+    answer:
+      "Sudden or worsening changes in memory, confusion, mood or falls deserve a doctor's call — that's a question for a professional, and sooner is kinder. If there's ever a risk of harm, don't wait: call emergency services.",
+    tone: "coach",
+  },
+  {
+    id: "no-account",
+    keywords: [
+      "need an account",
+      "do i need to sign in",
+      "sign in",
+      "log in",
+      "login",
+      "sign up",
+      "create an account",
+      "upload my data",
+      "cloud",
+      "is my data uploaded",
+    ],
+    answer:
+      "You don't need an account, sign-in or the internet. Everything — people, photos, reminders, and game history — is stored locally on your device. Nothing is uploaded unless you choose to share a backup yourself.",
+    tone: "greet",
+  },
+  {
+    id: "cost-free",
+    keywords: ["how much does it cost", "is it free", "price", "subscription", "pay for", "payment", "cost"],
+    answer:
+      "It's free to use — no subscription, no hidden charges. It's a prototype built with care, and keeping it simple and private is the whole point.",
+    tone: "greet",
+  },
+  {
+    id: "updates-better",
+    keywords: [
+      "update",
+      "will it get better",
+      "new games coming",
+      "new features",
+      "changelog",
+      "version",
+      "new things",
+    ],
+    answer:
+      "It keeps growing — new games, gentler reminders and better answers arrive over time, always staying private to your device. Your progress is kept safe through updates.",
+    tone: "greet",
+  },
+  {
+    id: "emergency",
+    keywords: [
+      "emergency",
+      "crisis",
+      "ambulance",
+      "urgent",
+      "danger",
+      "call someone now",
+      "help me now",
+      "not safe",
+      "hurt myself",
+      "feel like hurting",
+    ],
+    answer:
+      "Please take a slow breath. If you or someone with you is in danger right now, call your local emergency number and stay with them until help arrives. You deserve safety and support — don't face this alone.",
+    tone: "calm",
+  },
+  {
+    id: "sleep-rest",
+    keywords: [
+      "sleep",
+      "can't sleep",
+      "insomnia",
+      "rest",
+      "napping",
+      "wake up",
+      "night",
+      "tired",
+    ],
+    answer:
+      "Sleep is the quiet healer. Gentle rituals help: a calm wind-down, soft light, a warm drink, and keeping naps short and before evening. If poor sleep lingers, a word with your doctor is a kind step — you deserve good rest.",
+    tone: "calm",
+  },
+  {
+    id: "eat-well",
+    keywords: ["food", "diet", "eat well", "nutrition", "healthy eating", "drink water", "hydrate", "meals", "cooking"],
+    answer:
+      "A kind plate helps: regular meals, plenty of water through the day, and colourful fruit and vegetables when you can. Small, enjoyable meals beat complicated plans — and meals shared with someone you love taste even better.",
+    tone: "suggest",
+  },
+  {
+    id: "stay-active",
+    keywords: [
+      "walk",
+      "exercise",
+      "stay active",
+      "move my body",
+      "activity",
+      "gardening",
+      "outdoors",
+      "dance",
+      "walking",
+    ],
+    answer:
+      "Moving a little each day — a short walk, some gentle gardening or dancing to a favourite song — lifts the body and the mind together. Ten gentle minutes outside counts as a lovely win.",
+    tone: "suggest",
+  },
+  {
+    id: "social-note",
+    keywords: [
+      "talk to people",
+      "make friends",
+      "social",
+      "community",
+      "join a group",
+      "talk to someone",
+      "stay connected",
+      "see family",
+    ],
+    answer:
+      "Connection is medicine. A short call, a shared cup of tea, or a wave to a neighbour keeps us tethered to the world. You're never too old to start a gentle new friendship.",
+    tone: "empathize",
+  },
+  {
+    id: "what-is-dementia",
+    keywords: [
+      "what is dementia",
+      "what's dementia",
+      "alzheimer",
+      "alzheimer's",
+      "dementia",
+      "early signs",
+      "causes of dementia",
+      "type of dementia",
+    ],
+    answer:
+      "Dementia is an umbrella term for conditions that gradually affect memory, thinking and daily routines — Alzheimer's is the most common. It's not a normal part of ageing. Anyone with concerns should talk to a doctor early: right care and kindness make a real difference.",
+    tone: "coach",
+  },
+  {
+    id: "area-guide",
+    keywords: [
+      "which game helps",
+      "which game is best for",
+      "game for memory",
+      "game for attention",
+      "improve attention",
+      "improve memory",
+      "help with attention",
+      "help with memory",
+      "best game for my memory",
+      "brain game",
+      "train attention",
+      "train memory",
+      "game helps memory",
+    ],
+    answer:
+      "Different games warm up different areas:\n• Memory — Who Is In The Photo?, Remembering Names, Memory Lane, Word Recall\n• Attention & focus — Festival Drums, Color Trap, Quick Tap, Spot the Change\n• Thinking & planning — Morning Routine, Bazaar Maths, Pattern Loom, Odd One Out\n• Holding things in mind — Market Basket, Card Pairs, Word Builder\n• Finding things — Where Did I Keep It?, Shadow Match, Follow the Lights\nStart on Easy and let the game meet you where you are.",
+    tone: "suggest",
+    suggest: "faces",
   },
 ];
 
