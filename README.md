@@ -46,7 +46,7 @@ how it's displayed.
 | Companion mode | Full-screen camera experience, large identity card, relationship + description |
 | Honest recognition | Unknown people stay unknown — nearest-neighbor never wins by default |
 | Stability | Temporal smoothing + majority voting so identities don't flicker |
-| Mind Games | 28 gentle games across 7 cognitive domains, 3 difficulty levels, per-domain adaptive difficulty (IRT) |
+| Mind Games | 28 gentle games across 5 cognitive domains, 3 difficulty levels, per-domain adaptive difficulty (IRT) |
 | In-game coach | Draggable AI coach that encourages, suggests and celebrates during play |
 | Reminders | Recurring soft-tone prompts (medicine, meals, calls, walks) with an in-app scheduler |
 | Analytics | Weekly skill trends, adherence stats, care alerts, Fisher-information confidence bands |

@@ -73,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         Skip to content
       </a>
-      <header className="sticky top-0 z-50 border-b border-line/70 bg-canvas/85 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-line/70 bg-canvas/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 md:px-6">
           <Link href="/" aria-label="CareGiver home" className="shrink-0 rounded-xl">
             <Wordmark />
@@ -145,7 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={clsx(
-                  "flex min-h-[64px] flex-col items-center justify-center gap-1 text-xs font-semibold transition-colors",
+                  "flex min-h-[64px] flex-col items-center justify-center gap-1 px-0.5 text-center text-[11px] font-semibold leading-tight transition-colors",
                   companion &&
                     "-mt-4 h-16 w-16 justify-self-center rounded-full bg-accent text-white shadow-lift",
                   !companion && (active ? "text-accent" : "text-ink-soft"),

@@ -12,7 +12,7 @@
  * profiles live in IndexedDB.
  */
 
-const VERSION = "memoryassist-v1";
+const VERSION = "memoryassist-v2";
 const SHELL = [
   "/",
   "/caregiver",

@@ -84,7 +84,7 @@ export function Modal({
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
             transition={{ type: "spring", stiffness: 340, damping: 28 }}
              className={clsx(
-               "relative w-full rounded-3xl bg-surface border border-line shadow-lift p-6 md:p-8 max-h-[88vh] overflow-y-auto ma-scroll",
+               "relative w-full rounded-3xl bg-surface border border-line shadow-lift p-6 md:p-8 pb-[calc(1.5rem+env(safe-area-inset-bottom))] md:pb-8 max-h-[88vh] overflow-y-auto ma-scroll",
                size === "xl" ? "max-w-4xl" : size === "lg" ? "max-w-2xl" : "max-w-lg",
              )}
           >

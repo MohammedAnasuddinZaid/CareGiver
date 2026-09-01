@@ -106,7 +106,7 @@ export default function LandingPage() {
           variants={heroStagger}
           initial="hidden"
           animate="show"
-          className="relative z-20 mx-auto w-full max-w-7xl px-1 py-16 md:px-6"
+          className="relative z-20 mx-auto w-full max-w-7xl px-4 py-16 md:px-6"
         >
           {/* Pill Badge */}
           <motion.div

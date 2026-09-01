@@ -6,11 +6,12 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "CareGiver",
     description:
       "A privacy-first assistive app that helps people with memory impairment recognize familiar people and stay mentally active — entirely on-device.",
+    id: "/",
     start_url: "/",
     scope: "/",
     display: "standalone",
     display_override: ["standalone", "minimal-ui"],
-    orientation: "portrait",
+    prefer_related_applications: false,
     background_color: "#fafaf9",
     theme_color: "#0f766e",
     categories: ["health", "lifestyle", "medical"],

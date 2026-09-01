@@ -84,7 +84,7 @@ export function CompanionView() {
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black text-white">
       {/* Top bar */}
-      <header className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent p-4 text-white">
+      <header className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 bg-gradient-to-b from-black/70 to-transparent px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] text-white">
         <Link
           href="/"
           className="inline-flex min-h-[48px] items-center gap-2 rounded-full bg-white/10 px-5 py-2.5 text-base font-semibold backdrop-blur transition-colors hover:bg-white/20"
@@ -130,7 +130,7 @@ export function CompanionView() {
         )}
 
         {/* Privacy chip */}
-        <span className="absolute left-4 top-20 inline-flex items-center gap-2 rounded-full bg-black/45 px-3.5 py-1.5 text-sm font-medium text-teal-200 backdrop-blur">
+        <span className="absolute left-4 top-[calc(5rem+env(safe-area-inset-top))] inline-flex items-center gap-2 rounded-full bg-black/45 px-3.5 py-1.5 text-sm font-medium text-teal-200 backdrop-blur">
           <Lock className="h-3.5 w-3.5" aria-hidden />
           Processing stays on this device
         </span>
@@ -143,7 +143,7 @@ export function CompanionView() {
       </div>
 
       {/* Identity area — large, floating over the camera */}
-      <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center bg-gradient-to-t from-black/85 via-black/45 to-transparent px-4 pb-12 pt-20">
+      <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center bg-gradient-to-t from-black/85 via-black/45 to-transparent px-4 pb-[max(3rem,env(safe-area-inset-bottom))] pt-20">
         <div className="w-full max-w-3xl">
           {cameraStatus === "ready" && modelStatus === "ready" ? (
             <IdentityArea kind={stableKind} personName={person?.name ?? null} personRelationship={person?.relationship ?? null} description={person?.description ?? null} />
@@ -154,7 +154,7 @@ export function CompanionView() {
       </div>
 
       {/* Footer hints */}
-      <footer className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between px-4 pb-3 text-xs text-slate-300/80">
+      <footer className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-xs text-slate-300/80">
         <span>
           {peopleCount === 0
             ? "No familiar people enrolled yet — ask your caregiver to add someone."
