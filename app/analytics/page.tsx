@@ -80,6 +80,8 @@ export default function AnalyticsPage() {
         } else if (e.status === "done") done++;
         else if (e.status === "missed") missed++;
       }
+      // Peak misses for one reminder drive the adherence alert.
+      const peakMisses = Math.max(0, ...perReminder.values());
 
       // Fisher-information precision per domain from recent item history.
       const difficultiesByDomain = new Map<string, number[]>();
@@ -104,7 +106,7 @@ export default function AnalyticsPage() {
       if (!cancelled) {
         setAbilities(a);
         setTrends(domainTrends(sessions));
-        setAlerts(computeAlerts(sessions, Math.max(0, ...perReminder.values()) >= 3 ? Math.max(...perReminder.values()) : 0));
+        setAlerts(computeAlerts(sessions, peakMisses >= 3 ? peakMisses : 0));
         setStats({
           sessions: adherence(sessions).sessionsLast7Days,
           activeDays: adherence(sessions).activeDaysLast7Days,

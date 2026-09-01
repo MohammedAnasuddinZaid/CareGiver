@@ -57,8 +57,8 @@ const QUICK_STARTERS = [
   "Am I improving?",
   "Read my reports",
   "Suggest a game",
-  "Which game helps memory?",
-  "How do I help my family?",
+  "I don't remember things",
+  "Cheer me up",
 ];
 
 export default function AssistantPage() {

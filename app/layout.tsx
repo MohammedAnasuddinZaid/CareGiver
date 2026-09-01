@@ -10,16 +10,38 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const APP_NAME = "CareGiver";
+const APP_TAGLINE = "Helping familiar faces stay familiar.";
+
 export const metadata: Metadata = {
   title: {
-    default: "CareGiver — Helping familiar faces stay familiar",
-    template: "%s · CareGiver",
+    default: `${APP_NAME} — ${APP_TAGLINE}`,
+    template: `%s · ${APP_NAME}`,
   },
   description:
-    "A privacy-first assistive web app that helps people with memory impairment recognize the people who matter most — entirely on-device.",
-  applicationName: "CareGiver",
-  appleWebApp: { capable: true, title: "CareGiver", statusBarStyle: "default" },
+    "A privacy-first assistive web app that helps people with memory impairment recognize the people who matter most — entirely on-device with gentle mind games, reminders and progress insights.",
+  applicationName: APP_NAME,
+  appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "default" },
   formatDetection: { telephone: false },
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/icon-192.png",
+  },
+  openGraph: {
+    type: "website",
+    siteName: APP_NAME,
+    title: `${APP_NAME} — ${APP_TAGLINE}`,
+    description:
+      "Private on-device face recognition, gentle mind games, reminders and progress insights for families living with memory loss.",
+    images: [{ url: "/icons/icon-512.png", width: 512, height: 512, alt: APP_TAGLINE }],
+  },
+  twitter: {
+    card: "summary",
+    title: `${APP_NAME} — ${APP_TAGLINE}`,
+    description:
+      "A private, gentle assistant that helps recognize the people who matter most — using the camera you already have, nothing but this device.",
+    images: ["/icons/icon-512.png"],
+  },
 };
 
 export const viewport: Viewport = {

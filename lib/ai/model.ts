@@ -44,14 +44,15 @@ export interface LearningPatch {
 
 const INTENTS: Record<string, string[]> = {
   greeting: ["hi", "hello", "hey", "good morning", "good evening", "namaste", "hare"],
-  sad: ["sad", "lonely", "alone", "tired", "upset", "cry", "depressed", "low", "blue", "down"],
-  anxious: ["worried", "anxious", "scared", "afraid", "nervous", "stress", "panic"],
-  forgetful: ["forget", "forgot", "memory", "remember", "confused", "lost", "blank"],
-  frustrated: ["hard", "difficult", "can't", "cant", "cannot", "struggle", "frustrated", "annoying", "hate", "stuck"],
-  askHelp: ["help", "how", "what", "why", "suggest", "tip", "advice", "guide", "do i"],
+  sad: ["sad", "lonely", "alone", "tired", "upset", "cry", "depressed", "low", "blue", "down", "hopeless", "helpless", "gloomy", "empty", "tears"],
+  anxious: ["worried", "anxious", "scared", "afraid", "nervous", "stress", "panic", "overwhelmed", "shaky"],
+  forgetful: ["forget", "forgot", "memory", "remember", "confused", "lost", "blank", "i forgot", "keep forgetting", "forgetting", "can't remember", "cant remember", "i can't remember", "where did i"],
+  frustrated: ["hard", "difficult", "can't", "cant", "cannot", "struggle", "frustrated", "annoying", "hate", "stuck", "angry", "mad", "annoyed", "irritated", "furious"],
   gratitude: ["thanks", "thank you", "appreciate", "grateful", "cheers"],
-  compliment: ["love", "like", "great", "good", "nice", "wonderful", "amazing", "happy", "enjoy", "fun"],
-  bye: ["bye", "goodnight", "good night", "see you", "take care"],
+  compliment: ["love", "like", "great", "good", "nice", "wonderful", "amazing", "happy", "enjoy", "fun", "won", "i did it", "proud", "yay", "beat"],
+  feeling: ["feel", "feeling", "felt", "am i ok", "i am not ok", "im not ok", "i'm not ok"],
+  askHelp: ["help", "how", "what", "why", "suggest", "tip", "advice", "guide", "do i"],
+  bye: ["bye", "goodnight", "good night", "see you"],
 };
 
 function scoreIntents(text: string): { intent: string; score: number } {
@@ -61,7 +62,13 @@ function scoreIntents(text: string): { intent: string; score: number } {
   for (const [intent, words] of Object.entries(INTENTS)) {
     let s = 0;
     for (const w of words) {
-      if (lower.includes(` ${w}`) || lower.includes(w)) s += 1;
+      // Short signal words ("hi", "low", "bye") must sit on word boundaries,
+      // so "things" doesn't read as "hi" and "below" doesn't read as "low".
+      const hit =
+        w.length < 4
+          ? new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(lower)
+          : lower.includes(w);
+      if (hit) s += 1;
     }
     if (s > bestScore) {
       bestScore = s;
@@ -409,13 +416,27 @@ export function respond(
     };
   }
   if (intent === "compliment") {
-    const g = loved ?? mentioned ?? "memorylane";
+    if (doc?.id === "feeling-proud") {
+      return {
+        reply: {
+          text: doc.answer,
+          tone: "celebrate",
+          quick: ["Let's keep going", "Tell me more", "I feel happy"],
+          suggestGame: doc.suggest,
+        },
+        patch,
+      };
+    }
+    const g = loved ?? mentioned ?? null;
+    const text = g
+      ? `I'm so glad${nameCallout(profile)}! That warmth is good for the brain. Let's keep that feeling going with ${GAME_TITLES[g]}.`
+      : `I'm so glad to hear that${nameCallout(profile)}! That warmth is good for the heart and the mind. Let's carry it into a gentle little moment — a game, a favourite song, a short walk.`;
     return {
       reply: {
-        text: `I'm so glad${nameCallout(profile)}! That warmth is good for the brain. Let's keep that feeling going with ${GAME_TITLES[g]}.`,
+        text,
         tone: "celebrate",
         quick: ["Let's go", "Tell me more", "I feel happy"],
-        suggestGame: g,
+        suggestGame: g ?? undefined,
       },
       patch,
     };
@@ -440,10 +461,50 @@ export function respond(
     };
   }
 
+  // --- Strong feelings with no matching fact: be present first. ---
+  if (intent === "forgetful") {
+    return {
+      reply: {
+        text: `Let me be your calm helper with that${nameCallout(profile)}. Forgetting something — a word, a place, why you came into a room — happens to everyone, and it does not mean you are losing ground. You are still you. We can keep the names you love on this device, set gentle reminders so the day writes itself, or take a short, easy memory stroll together.`,
+        tone: "calm",
+        quick: [
+          "I can't remember things",
+          "Remind me of my day",
+          "Which game helps memory?",
+          "How do reminders work?",
+        ],
+        suggestGame: "memorylane",
+      },
+      patch,
+    };
+  }
+  if (intent === "frustrated") {
+    return {
+      reply: {
+        text: `No wonder that feels heavy${nameCallout(profile)} — however you're feeling, it's okay. Let's make today smaller: an easier game, a gentler reminder, or simply a quiet moment together. You don't have to succeed at anything today; showing up is already enough.`,
+        tone: "empathize",
+        quick: ["Something fun please", "Cheer me up", "Which game is easy?", "Tell me something nice"],
+        suggestGame: "faces",
+      },
+      patch,
+    };
+  }
+  if (intent === "feeling") {
+    return {
+      reply: {
+        text: `Thank you for trusting me${nameCallout(profile)} — I'm right here with you, whatever it is. Take it at your own pace: a soft game, a warm drink, or a few slow breaths all count as kindness to yourself.`,
+        tone: "empathize",
+        quick: ["I'm feeling sad", "I keep forgetting things", "Cheer me up", "Plan my day"],
+        suggestGame: "faces",
+      },
+      patch,
+    };
+  }
+
   if (intent === "askHelp") {
     return {
       reply: {
-        text: `Of course${nameCallout(profile)}. I can tell you about privacy, the games, Companion Mode, reminders and your progress. What would you like to know?`,
+        text: `Of course${nameCallout(profile)} — I've got you. I can help with so many things: plan your day, read your progress, suggest a game, find a reminder, or explain privacy and how the app works. What would you like?`,
         tone: "suggest",
         quick: TOPIC_QUESTIONS,
       },

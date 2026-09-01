@@ -149,3 +149,68 @@ describe("extended knowledge base", () => {
     expect(bestDoc("what is dementia?")?.id).toBe("what-is-dementia");
   });
 });
+
+describe("empathetic simple questions", () => {
+  it("reassures someone who can't remember", () => {
+    const { reply } = respond({ message: "I don't remember things, help me" }, emptyProfile(), ctx());
+    expect(reply.tone).toBe("calm");
+    expect(reply.text.toLowerCase()).toContain("forgetting");
+    expect(reply.suggestGame).toBe("memorylane");
+  });
+
+  it("helps when someone just says they are feeling off", () => {
+    const { reply } = respond({ message: "I am feeling now help me" }, emptyProfile(), ctx());
+    expect(reply.tone).toBe("empathize");
+    expect(reply.text.toLowerCase()).toContain("thank you for telling me");
+  });
+
+  it("soothes sadness without ever sounding clinical", () => {
+    const { reply } = respond({ message: "i feel so sad today" }, emptyProfile(), ctx());
+    expect(reply.tone).toBe("empathize");
+    expect(reply.text).toContain("not alone");
+    expect(reply.suggestGame).toBe("faces");
+  });
+
+  it("meets anger with compassion instead of instructions", () => {
+    const { reply } = respond({ message: "i am angry right now" }, emptyProfile(), ctx());
+    expect(reply.tone).toBe("empathize");
+    expect(reply.text.toLowerCase()).toContain("okay");
+  });
+
+  it("is warm for a bare feeling with no label", () => {
+    const { reply } = respond({ message: "I feel weird today" }, emptyProfile(), ctx());
+    expect(reply.tone).toBe("empathize");
+    expect(reply.text.toLowerCase()).toContain("right here with you");
+  });
+
+  it("cheers someone up on request", () => {
+    const { reply } = respond({ message: "cheer me up" }, emptyProfile(), ctx());
+    expect(reply.text.toLowerCase()).toContain("braver");
+    expect(reply.suggestGame).toBe("faces");
+  });
+
+  it("answers who-are-you simply and honestly", () => {
+    const { reply } = respond({ message: "are you a robot?" }, emptyProfile(), ctx());
+    expect(reply.tone).toBe("greet");
+    expect(reply.text.toLowerCase()).toContain("device");
+  });
+
+  it("celebrates a win", () => {
+    const { reply } = respond({ message: "i won the game!" }, emptyProfile(), ctx());
+    expect(reply.tone).toBe("celebrate");
+    expect(reply.text.toLowerCase()).toContain("proud");
+  });
+
+  it("celebrates when no game is mentioned", () => {
+    const { reply } = respond({ message: "i enjoyed talking to you" }, emptyProfile(), ctx());
+    expect(reply.tone).toBe("celebrate");
+  });
+
+  it("classifies a memory lapse", () => {
+    expect(bestDoc("i can't remember where i put my keys")?.id).toBe("memory-lapse");
+  });
+
+  it("recognises an unlabelled feeling", () => {
+    expect(bestDoc("i am feeling ready to talk")?.id).toBe("i-feel");
+  });
+});
