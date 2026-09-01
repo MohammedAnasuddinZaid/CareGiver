@@ -31,6 +31,15 @@ export class DescriptorMemory {
   private entries = new Map<string, MemoryEntry>();
   /** Stale entries are dropped after this long without updates. */
   private static readonly TTL_MS = 2000;
+  /**
+   * Angular-distance threshold (on L2-normalized descriptors) above which
+   * the memory is RESET instead of blended.  A value of 0.7 corresponds
+   * roughly to cosine similarity 0.51 — well below any legitimate
+   * same-person variation (~0.1–0.3) but above typical cross-person
+   * distances (~0.7–1.4).  This catches IoU track swaps where the new
+   * face is a completely different person.
+   */
+  private static readonly RESET_THRESHOLD = 0.7;
 
   reset(): void {
     this.entries.clear();
@@ -40,6 +49,13 @@ export class DescriptorMemory {
    * Feeds one raw descriptor for `key` (a tracker id) and returns the
    * smoothed descriptor to match against. Invalid vectors are ignored
    * (returns null) so a corrupt frame can never poison the average.
+   *
+   * Track-swap detection: when the angular distance between the current
+   * EMA and the new descriptor exceeds `RESET_THRESHOLD`, the track has
+   * likely been reassigned to a different physical face (IoU swap when
+   * two people cross). Instead of blending — which would create a hybrid
+   * descriptor matching NEITHER person — the memory is reset so the new
+   * face gets a clean start.
    */
   update(key: string, descriptor: number[], now: number): number[] | null {
     if (!isFiniteVector(descriptor, DESCRIPTOR_LENGTH)) return null;
@@ -49,7 +65,32 @@ export class DescriptorMemory {
       this.entries.set(key, { d: copy, n: 1, last: now });
       return copy;
     }
+
+    // Track-swap guard: cosine distance between EMA and new descriptor.
+    // High distance means the tracker likely reassigned this ID to a
+    // different face — reset instead of blending.
     const target = existing.d;
+    let dot = 0;
+    let normE = 0;
+    let normD = 0;
+    for (let i = 0; i < target.length; i++) {
+      dot += target[i] * descriptor[i];
+      normE += target[i] * target[i];
+      normD += descriptor[i] * descriptor[i];
+    }
+    const denom = Math.sqrt(normE * normD);
+    if (denom > 1e-12) {
+      const cosSim = Math.min(1, Math.max(-1, dot / denom));
+      const angularDist = Math.sqrt(Math.max(0, 2 - 2 * cosSim));
+      if (angularDist > DescriptorMemory.RESET_THRESHOLD) {
+        const copy = descriptor.slice();
+        existing.d = copy;
+        existing.n = 1;
+        existing.last = now;
+        return copy;
+      }
+    }
+
     for (let i = 0; i < target.length; i++) {
       target[i] += DESCRIPTOR_EMA_ALPHA * (descriptor[i] - target[i]);
     }

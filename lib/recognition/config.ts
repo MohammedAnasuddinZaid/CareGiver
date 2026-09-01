@@ -29,9 +29,9 @@ export const recognitionConfig = {
    * unfamiliar person can remain unknown rather than be mislabeled.
    */
   thresholds: {
-    cautious: 0.55,
-    balanced: 0.6,
-    permissive: 0.68,
+    cautious: 0.50,
+    balanced: 0.55,
+    permissive: 0.62,
   } satisfies Record<Sensitivity, number>,
   defaultSensitivity: "balanced" as Sensitivity,
 
@@ -45,10 +45,10 @@ export const recognitionConfig = {
    *   c = σ(k · (T − d)), used to weight temporal votes.
    */
   matching: {
-    ambiguityMargin: 0.07,
-    uncertaintyBandLow: 0.42,
-    uncertaintyBandHigh: 0.66,
-    confidenceSlope: 12,
+    ambiguityMargin: 0.09,
+    uncertaintyBandLow: 0.35,
+    uncertaintyBandHigh: 0.58,
+    confidenceSlope: 14,
   },
 
   /**

@@ -200,6 +200,75 @@ export function identifyFaceIndexedDetailed(
   };
 }
 
+/**
+ * Cross-frame deduplication: when multiple faces in the same frame
+ * independently match the SAME enrolled person, only the closest
+ * match (lowest distance) keeps that identity. The rest are demoted
+ * to "unknown" to prevent two different people from both wearing the
+ * same name tag — the core bug this function fixes.
+ *
+ * The one exception: when two faces match the same person with
+ * nearly equal distances (gap < minGap), they are kept as-is because
+ * they are most likely the SAME physical person appearing twice
+ * (e.g. reflection, photo on a wall).
+ */
+export function deduplicateFrameMatches<T extends {
+  matched: boolean;
+  personId: string | null;
+  distance: number | null;
+}>(matches: T[]): T[] {
+  // Group matched faces by personId.
+  const byPerson = new Map<string, number[]>();
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i];
+    if (m.matched && m.personId && m.distance !== null) {
+      const indices = byPerson.get(m.personId) ?? [];
+      indices.push(i);
+      byPerson.set(m.personId, indices);
+    }
+  }
+
+  const demote = new Set<number>();
+  for (const [, indices] of byPerson) {
+    if (indices.length <= 1) continue;
+
+    // Sort by distance ascending (best match first).
+    indices.sort(
+      (a, b) => (matches[a].distance ?? Infinity) - (matches[b].distance ?? Infinity),
+    );
+
+    const bestDistance = matches[indices[0]].distance ?? 0;
+
+    for (let k = 1; k < indices.length; k++) {
+      const d = matches[indices[k]].distance ?? Infinity;
+      const gap = d - bestDistance;
+      // Small gap = likely the same person appearing twice → keep both.
+      // Large gap = likely two different people matching the same profile → demote.
+      if (gap > DUPLICATE_GAP_THRESHOLD) {
+        demote.add(indices[k]);
+      }
+    }
+  }
+
+  if (demote.size === 0) return matches;
+
+  return matches.map((m, i) => {
+    if (demote.has(i)) {
+      return {
+        ...m,
+        matched: false,
+        personId: null,
+        distance: m.distance,
+        rejectedBy: "ambiguity",
+      } as T;
+    }
+    return m;
+  });
+}
+
+/** Minimum distance gap to consider two faces as different people. */
+const DUPLICATE_GAP_THRESHOLD = 0.06;
+
 /** Back-compatible simple matcher built on the detailed pipeline. */
 export function identifyFace(
   query: number[],

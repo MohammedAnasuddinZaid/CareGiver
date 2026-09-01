@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
+  deduplicateFrameMatches,
   identifyFace,
   identifyFaceDetailed,
   selectPrimaryFace,
@@ -148,5 +149,64 @@ describe("selectPrimaryFace", () => {
       { box: box(5, 5, 260, 260), matched: false },
     ];
     expect(selectPrimaryFace(faces)).toBe(1);
+  });
+});
+
+describe("deduplicateFrameMatches", () => {
+  it("demotes the worse match when two faces claim the same person", () => {
+    const matches = [
+      { matched: true, personId: "mom", distance: 0.30 },
+      { matched: true, personId: "mom", distance: 0.45 },
+    ];
+    const result = deduplicateFrameMatches(matches);
+    expect(result[0].matched).toBe(true);
+    expect(result[0].personId).toBe("mom");
+    expect(result[1].matched).toBe(false);
+    expect(result[1].personId).toBeNull();
+  });
+
+  it("keeps both when distances are nearly equal (same person twice)", () => {
+    const matches = [
+      { matched: true, personId: "mom", distance: 0.30 },
+      { matched: true, personId: "mom", distance: 0.33 },
+    ];
+    const result = deduplicateFrameMatches(matches);
+    expect(result[0].matched).toBe(true);
+    expect(result[1].matched).toBe(true);
+  });
+
+  it("does not touch faces matching different people", () => {
+    const matches = [
+      { matched: true, personId: "mom", distance: 0.30 },
+      { matched: true, personId: "dad", distance: 0.35 },
+    ];
+    const result = deduplicateFrameMatches(matches);
+    expect(result[0].matched).toBe(true);
+    expect(result[0].personId).toBe("mom");
+    expect(result[1].matched).toBe(true);
+    expect(result[1].personId).toBe("dad");
+  });
+
+  it("does not touch unknown faces", () => {
+    const matches = [
+      { matched: true, personId: "mom", distance: 0.30 },
+      { matched: false, personId: null, distance: null },
+    ];
+    const result = deduplicateFrameMatches(matches);
+    expect(result[0].matched).toBe(true);
+    expect(result[1].matched).toBe(false);
+  });
+
+  it("keeps only the closest of three faces claiming the same person", () => {
+    const matches = [
+      { matched: true, personId: "mom", distance: 0.40 },
+      { matched: true, personId: "mom", distance: 0.30 },
+      { matched: true, personId: "mom", distance: 0.48 },
+    ];
+    const result = deduplicateFrameMatches(matches);
+    expect(result.filter((m) => m.matched && m.personId === "mom").length).toBe(1);
+    // The best match (distance 0.30, index 1) is kept
+    expect(result[1].matched).toBe(true);
+    expect(result[1].personId).toBe("mom");
   });
 });

@@ -16,6 +16,7 @@ import {
 } from "@/lib/recognition/model-manager";
 import {
   buildProfileIndex,
+  deduplicateFrameMatches,
   identifyFaceIndexedDetailed,
   selectPrimaryFace,
 } from "@/lib/recognition/matching";
@@ -405,8 +406,13 @@ export function useRecognition({ active }: RecognitionArgs) {
         });
         descriptorMemoryRef.current.retain(tracked.map((t) => String(t.trackId)));
 
-        drawTrackedBoxes(enriched);
-        drawFaceLabels(enriched);
+        // Cross-face deduplication: when two faces independently match the
+        // same enrolled person, only the closest keeps that identity.
+        // This prevents two different people from both wearing the same name.
+        const deduplicated = deduplicateFrameMatches(enriched);
+
+        drawTrackedBoxes(deduplicated);
+        drawFaceLabels(deduplicated);
 
         const now = performance.now();
         let nextKind: StableKind;
@@ -423,8 +429,8 @@ export function useRecognition({ active }: RecognitionArgs) {
           nextKind = s.kind;
           nextPersonId = s.personId;
         } else {
-          const primaryIndex = selectPrimaryFace(enriched);
-          const primary = enriched[primaryIndex];
+          const primaryIndex = selectPrimaryFace(deduplicated);
+          const primary = deduplicated[primaryIndex];
           const observation =
             primary.matched && primary.personId
               ? { personId: primary.personId, confidence: primary.confidence }
