@@ -1,12 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  AnimatePresence,
-  motion,
-  useDragControls,
-  useMotionValue,
-} from "framer-motion";
+import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { GripVertical, Sparkles, X } from "lucide-react";
 import { coachMessage, type CoachMessage, type CoachTone } from "@/lib/games/coach";
 import type { GameId, SkillDomain } from "@/lib/games/types";
@@ -53,7 +48,6 @@ export function GameCoach({
   const lastKey = useRef<string>(next.key);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const dragControls = useDragControls();
   const constraints = useRef<HTMLDivElement>(null);
   const start = loadDragPos(POS_KEY);
   const x = useMotionValue(start.x);
@@ -79,10 +73,11 @@ export function GameCoach({
       {/* Full-viewport drag boundary (does not capture pointer events). */}
       <div ref={constraints} aria-hidden className="pointer-events-none fixed inset-0 z-30" />
 
+      {/* Drag from anywhere on the pill — the native framer-motion listener
+          distinguishes a tap (toggle tip) from a drag (move the coach). */}
       <motion.div
         drag
-        dragControls={dragControls}
-        dragListener={false}
+        dragListener
         dragMomentum={false}
         dragConstraints={constraints}
         dragElastic={0.04}
@@ -124,11 +119,10 @@ export function GameCoach({
           )}
         </AnimatePresence>
 
-        {/* Pill — drag handle + toggle. Drag from anywhere on the pill. */}
+        {/* Pill — drag from anywhere on it. */}
         <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-night-card/90 p-1 pl-1.5 shadow-lift ring-1 ring-white/15 backdrop-blur-md">
           <button
             type="button"
-            onPointerDown={(e) => dragControls.start(e)}
             onClick={() => setOpen((o) => !o)}
             aria-label={open ? "Hide coach tip" : "Show coach tip"}
             className="flex items-center gap-2 rounded-full px-2.5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
@@ -139,14 +133,8 @@ export function GameCoach({
             Coach
           </button>
           <span
-            role="button"
-            tabIndex={-1}
             aria-hidden
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              dragControls.start(e);
-            }}
-            className="cursor-grab rounded-full p-1 text-white/40 transition-colors hover:bg-white/10 hover:text-white/70 active:cursor-grabbing"
+            className="cursor-grab rounded-full p-1 text-white/40 transition-colors hover:bg-white/70 active:cursor-grabbing"
             title="Drag to move"
           >
             <GripVertical className="h-4 w-4" />

@@ -462,7 +462,7 @@ function LookalikeBanner({
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button size="md" onClick={onMerge} disabled={merging}>
-              {merging ? "Adding to existing profile…" : `Add to ${person.name}&rsquo;s profile`}
+              {merging ? "Adding to existing profile…" : `Add to ${person.name}'s profile`}
             </Button>
             <Button variant="ghost" size="md" onClick={onKeepNew} disabled={merging}>
               Keep as a new person

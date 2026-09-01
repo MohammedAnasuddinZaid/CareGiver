@@ -1,14 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import {
-  AnimatePresence,
-  motion,
-  useDragControls,
-  useMotionValue,
-} from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Send, Sparkles, Terminal, X } from "lucide-react";
 import {
   respond,
@@ -26,7 +21,6 @@ import {
 import { gatherContext, type DeviceContext } from "@/lib/ai/context";
 import { GAME_ROUTES, GAME_TITLES } from "@/components/games/game-meta";
 import type { GameId } from "@/lib/games/types";
-import { loadDragPos, saveDragPos } from "@/lib/ui/drag-pos";
 
 interface Msg {
   id: number;
@@ -130,91 +124,16 @@ export function CompanionAssistant() {
 
   const last = messages[messages.length - 1];
 
-  // Draggable launcher — park it anywhere; position is remembered on-device.
-  const dragControls = useDragControls();
-  const launchBounds = useRef<HTMLDivElement>(null);
-  const startPos = loadDragPos("ma.companion.pos.v1");
-  const lx = useMotionValue(startPos.x);
-  const ly = useMotionValue(startPos.y);
-  // Re-render so the open panel stays glued to the launcher after a drag.
-  const [, forceRerender] = useReducer((c: number) => c + 1, 0);
-
-  // Track the viewport so the panel can open NEXT TO the launcher, wherever
-  // it was dragged. Opening at the fixed bottom-right instead was what made
-  // it feel like the chat "opens at the bottom of the page" far from the AI
-  // symbol. `md` mirrors Tailwind's breakpoint so offsets stay in sync.
-  const [vp, setVp] = useState<{ w: number; h: number; md: boolean }>(() =>
-    typeof window === "undefined"
-      ? { w: 0, h: 0, md: false }
-      : {
-          w: window.innerWidth,
-          h: window.innerHeight,
-          md: window.matchMedia("(min-width: 768px)").matches,
-        },
-  );
-
-  useEffect(() => {
-    const measure = () =>
-      setVp({
-        w: window.innerWidth,
-        h: window.innerHeight,
-        md: window.matchMedia("(min-width: 768px)").matches,
-      });
-    measure();
-    window.addEventListener("resize", measure);
-    window.addEventListener("orientationchange", measure);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("orientationchange", measure);
-    };
-  }, []);
-
-  // Panel placement derived from the launcher's CURRENT drag position.
-  // Opens just above the symbol (or below it when there isn't enough room),
-  // right-aligned to it, clamped inside the viewport.
-  const panelStyle = (() => {
-    if (vp.w === 0) return null;
-    const launcherSize = 56;
-    const gap = 14;
-    const baseBottom = vp.md ? 24 : 96; // md:bottom-6 / bottom-24
-    const baseRight = vp.md ? 24 : 16; // md:right-6 / right-4
-    const launcherLeft = vp.w - baseRight - launcherSize + lx.get();
-    const launcherTop = vp.h - baseBottom - launcherSize + ly.get();
-    const launcherBottom = launcherTop + launcherSize;
-    const width = Math.min(512, vp.w - 16);
-    const height = Math.min(vp.h * 0.82, 620);
-    const fitsAbove = launcherTop - gap - height >= 12;
-    const top = fitsAbove
-      ? launcherTop - gap - height
-      : Math.min(launcherBottom + gap, vp.h - height - 12);
-    const rightAligned = launcherLeft + launcherSize - width;
-    const left = Math.min(Math.max(12, rightAligned), vp.w - width - 12);
-    return { top, left, width, height };
-  })();
-
   return (
     <>
-      {/* Full-viewport drag boundary (does not capture pointer events). */}
-      <div ref={launchBounds} aria-hidden className="pointer-events-none fixed inset-0 z-[55]" />
-
-      {/* Floating launcher */}
+      {/* Floating launcher — pinned to the bottom-right corner. Tapping it
+          opens the terminal RIGHT THERE, tucked above the circle, so the chat
+          never feels like it "opens at the bottom of the page". */}
       <motion.button
         type="button"
-        drag
-        dragControls={dragControls}
-        dragListener={false}
-        dragMomentum={false}
-        dragConstraints={launchBounds}
-        dragElastic={0.04}
-        style={{ x: lx, y: ly }}
-        onDragEnd={() => {
-          saveDragPos("ma.companion.pos.v1", { x: lx.get(), y: ly.get() });
-          forceRerender();
-        }}
-        onPointerDown={(e) => dragControls.start(e)}
         onClick={() => setOpen((o) => !o)}
-        aria-label={open ? "Close companion" : "Open AI companion — drag to move"}
-        title="Drag to move · tap to open"
+        aria-label={open ? "Close companion" : "Open AI companion"}
+        title="Ask me anything · tap to open"
         className="fixed bottom-24 right-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-strong text-white shadow-lift transition-transform hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
       >
         <motion.span
@@ -227,15 +146,17 @@ export function CompanionAssistant() {
         <span className="glow-pulse absolute inset-0 rounded-full" aria-hidden />
       </motion.button>
 
+      {/* Terminal — opens as a small window, bottom-right edge aligned to the
+          circle, its bottom sitting just above it. Launcher (h-14 = 56px) +
+          gap (14px) = 70px above the launcher's own offset. */}
       <AnimatePresence>
-        {open && panelStyle && (
+        {open && (
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ type: "spring", stiffness: 280, damping: 26 }}
-            style={panelStyle}
-            className="gradient-ring fixed z-[60] flex flex-col overflow-hidden rounded-3xl border border-white/40 bg-night-card/95 shadow-lift backdrop-blur-xl"
+            className="gradient-ring fixed bottom-[166px] right-4 z-[60] flex h-[min(72vh,520px)] w-[min(94vw,400px)] flex-col overflow-hidden rounded-3xl border border-white/40 bg-night-card/95 shadow-lift backdrop-blur-xl md:bottom-[94px] md:right-6"
             role="dialog"
             aria-label="AI companion chat"
           >
