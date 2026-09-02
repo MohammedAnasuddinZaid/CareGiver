@@ -400,14 +400,14 @@ function TrendCard({
 /** Minimal dependency-free SVG sparkline with area fill. */
 function Sparkline({ points }: { points: number[] }) {
   const path = useMemo(() => {
-    if (points.length < 2) return null;
+    if (points.length === 0) return null;
     const min = Math.min(...points);
     const max = Math.max(...points);
     const span = max - min || 1;
     const w = 200;
     const h = 48;
     const coords = points.map((v, i) => ({
-      x: (i / (points.length - 1)) * w,
+      x: points.length === 1 ? w / 2 : (i / (points.length - 1)) * w,
       y: h - ((v - min) / span) * h,
     }));
     const d = coords

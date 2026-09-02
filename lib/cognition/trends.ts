@@ -26,7 +26,7 @@ export function domainTrends(
   windowDays = 21,
 ): DomainTrend[] {
   const cutoff = Date.now() - windowDays * MS_PER_DAY;
-  const perDomain = new Map<SkillDomain, TrendPoint[]>();
+  const perDomain = new Map<SkillDomain, { t: number; theta: number }[]>();
 
   for (const session of sessions) {
     const t = Date.parse(session.startedAt);
@@ -35,7 +35,7 @@ export function domainTrends(
       if (!theta || typeof theta !== "number") continue;
       const domain = domainRaw as SkillDomain;
       const list = perDomain.get(domain) ?? [];
-      list.push({ x: (t - cutoff) / MS_PER_DAY, y: theta });
+      list.push({ t, theta });
       perDomain.set(domain, list);
     }
   }
@@ -45,17 +45,41 @@ export function domainTrends(
     // Bucket by integer day → daily mean keeps OLS stable vs bursty play.
     const byDay = new Map<number, number[]>();
     for (const p of raw) {
-      const key = Math.round(p.x);
+      const key = Math.round((p.t - cutoff) / MS_PER_DAY);
       const list = byDay.get(key) ?? [];
-      list.push(p.y);
+      list.push(p.theta);
       byDay.set(key, list);
     }
-    const points: TrendPoint[] = [...byDay.entries()]
+    const daily: TrendPoint[] = [...byDay.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([day, ys]) => ({ x: day, y: ys.reduce((s, y) => s + y, 0) / ys.length }));
 
+    // When there is very little evidence every session lands on one calendar
+    // day, so the daily mean collapses to a single point and no trend can
+    // ever render. Fall back to one point per session (keyed by exact time)
+    // so the line starts appearing from the very first couple of games.
+    const points =
+      daily.length < 2
+        ? (() => {
+            const byX = new Map<number, { sum: number; n: number }>();
+            for (const p of raw) {
+              const x = (p.t - cutoff) / MS_PER_DAY;
+              const cur = byX.get(x) ?? { sum: 0, n: 0 };
+              cur.sum += p.theta;
+              cur.n += 1;
+              byX.set(x, cur);
+            }
+            return [...byX.entries()]
+              .sort((a, b) => a[0] - b[0])
+              .map(([x, v]) => ({ x, y: v.sum / v.n }));
+          })()
+        : daily;
+
+    // A slope needs at least two distinct timestamps; single-point histories
+    // report null (the UI shows "not enough data" for exactly that case).
+    const distinctXs = new Set(points.map((p) => p.x));
     const slopePerWeek =
-      points.length >= 2 ? olsSlope(points.map((p) => ({ x: p.x / 7, y: p.y }))) : null;
+      distinctXs.size >= 2 ? olsSlope(points.map((p) => ({ x: p.x / 7, y: p.y }))) : null;
 
     return {
       domain,

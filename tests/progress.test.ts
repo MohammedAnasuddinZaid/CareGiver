@@ -8,18 +8,32 @@ function session(
   daysAgo: number,
   theta = 0.5,
   completion = 1,
+  startedAt?: string,
 ): GameSession {
-  const startedAt = new Date(NOW - daysAgo * 86_400_000).toISOString();
+  const at = startedAt ?? new Date(NOW - daysAgo * 86_400_000).toISOString();
   return {
-    id: `s-${daysAgo}-${theta}`,
+    id: `s-${daysAgo}-${theta}-${at}`,
     game: "faces",
-    startedAt,
-    endedAt: startedAt,
+    startedAt: at,
+    endedAt: at,
     trials: [],
     thetaAfter: { memory: theta },
     completion,
     endedEarly: false,
   };
+}
+
+/** Two sessions on the same calendar day, a few minutes apart. */
+function sameDaySessions(dayOffsetHours: number, values: number[]): GameSession[] {
+  const dayStart = new Date(NOW - dayOffsetHours * 3_600_000);
+  return values.map((v, i) =>
+    session(
+      0,
+      v,
+      1,
+      new Date(dayStart.getTime() + i * 5 * 60_000).toISOString(),
+    ),
+  );
 }
 
 describe("domain trends", () => {
@@ -48,6 +62,23 @@ describe("domain trends", () => {
     const memory = trends.find((t) => t.domain === "memory")!;
     expect(memory.points).toHaveLength(1);
     expect(memory.points[0].y).toBeCloseTo(0.4);
+  });
+
+  it("emits one point per session (same-day) so a trend appears from the first games", () => {
+    const sessions = sameDaySessions(0, [0.2, 0.6]);
+    const trends = domainTrends(sessions);
+    const memory = trends.find((t) => t.domain === "memory")!;
+    // Two sessions minutes apart on one day → two points, not one collapsed day.
+    expect(memory.points.length).toBeGreaterThanOrEqual(2);
+    // And enough separation to fit a slope.
+    expect(memory.slopePerWeek).not.toBeNull();
+  });
+
+  it("renders a flat single-point history without a slope", () => {
+    const trends = domainTrends([session(0, 0.5)]);
+    const memory = trends.find((t) => t.domain === "memory")!;
+    expect(memory.points).toHaveLength(1);
+    expect(memory.slopePerWeek).toBeNull();
   });
 });
 
