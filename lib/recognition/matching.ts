@@ -5,7 +5,6 @@ import type { FaceBox, ProfileLike } from "./types";
 export interface MatchOptions {
   threshold: number;
   ambiguityMargin?: number;
-  uncertaintyBand?: readonly [number, number];
   confidenceSlope?: number;
 }
 
@@ -90,9 +89,11 @@ export function compareDescriptorToProfile(
  *
  * 1. THRESHOLD — the best candidate must sit within the configured
  *    distance threshold, else the result is unknown.
- * 2. AMBIGUITY — when the best distance lies inside the uncertainty band,
- *    a runner-up closer than `ambiguityMargin` forces unknown too.
- *    ("Is it Mom or Dad?" must never be answered by a coin flip.)
+ * 2. AMBIGUITY — when the best and runner-up persons are nearly
+ *    equidistant (small margin), we refuse to label the face at all,
+ *    so a head-tilt between two enrolled people can never borrow a
+ *    wrong name ("Is it Mom or Dad?" must never be answered by a coin
+ *    flip; the face is left unknown until a clearer frame).
  * 3. CONFIDENCE — a logistic calibration used downstream to weight
  *    temporal evidence; weak matches accumulate votes slowly.
  */
@@ -117,10 +118,6 @@ export function identifyFaceIndexedDetailed(
   const {
     threshold,
     ambiguityMargin = recognitionConfig.matching.ambiguityMargin,
-    uncertaintyBand = [
-      recognitionConfig.matching.uncertaintyBandLow,
-      recognitionConfig.matching.uncertaintyBandHigh,
-    ] as const,
     confidenceSlope = recognitionConfig.matching.confidenceSlope,
   } = options;
 
@@ -180,13 +177,16 @@ export function identifyFaceIndexedDetailed(
   if (bestDistance > threshold) {
     return { ...base, rejectedBy: "threshold" };
   }
-  const [bandLow, bandHigh] = uncertaintyBand;
-  if (
-    base.margin !== null &&
-    base.margin < ambiguityMargin &&
-    bestDistance >= bandLow &&
-    bestDistance <= bandHigh
-  ) {
+  // AMBIGUITY — STRICT: whenever the best and runner-up persons are nearly
+  // equidistant (margin below `ambiguityMargin`), we refuse to label the
+  // face at all. This is intentionally independent of the absolute distance:
+  // a head that tilts can drift a descriptor between two enrolled people
+  // (Mom ↔ Dad), and guessing which one wins that close call is precisely
+  // the wrong-name failure a caregiver must never see. The face comes back
+  // as unknown instead — the caller can still recognize it correctly on a
+  // later, clearer frame. With a single enrolled person there is no
+  // runner-up, so a genuine close match is never blocked.
+  if (base.margin !== null && base.margin < ambiguityMargin) {
     return { ...base, rejectedBy: "ambiguity" };
   }
 
@@ -203,14 +203,17 @@ export function identifyFaceIndexedDetailed(
 /**
  * Cross-frame deduplication: when multiple faces in the same frame
  * independently match the SAME enrolled person, only the closest
- * match (lowest distance) keeps that identity. The rest are demoted
- * to "unknown" to prevent two different people from both wearing the
- * same name tag — the core bug this function fixes.
+ * match (lowest distance) keeps that identity. All the rest are demoted
+ * to "unknown" — the core rule that two different heads can NEVER wear
+ * the same name tag at once.
  *
- * The one exception: when two faces match the same person with
- * nearly equal distances (gap < minGap), they are kept as-is because
- * they are most likely the SAME physical person appearing twice
- * (e.g. reflection, photo on a wall).
+ * The OLD behavior kept a second match when its distance gap to the best
+ * was tiny (≤ 0.06, "probably the same person reflected / in a photo"). In
+ * practice that rule is exactly how an unsaved stranger standing next to a
+ * saved person ended up with the saved person's name on BOTH heads, so it
+ * has been removed. Strictness beats convenience: an extra face that also
+ * matches a saved person is shown as unknown, never given that person's
+ * name.
  */
 export function deduplicateFrameMatches<T extends {
   matched: boolean;
@@ -231,22 +234,12 @@ export function deduplicateFrameMatches<T extends {
   const demote = new Set<number>();
   for (const [, indices] of byPerson) {
     if (indices.length <= 1) continue;
-
-    // Sort by distance ascending (best match first).
+    // Sort by distance ascending (best match first), keep only the best.
     indices.sort(
       (a, b) => (matches[a].distance ?? Infinity) - (matches[b].distance ?? Infinity),
     );
-
-    const bestDistance = matches[indices[0]].distance ?? 0;
-
     for (let k = 1; k < indices.length; k++) {
-      const d = matches[indices[k]].distance ?? Infinity;
-      const gap = d - bestDistance;
-      // Small gap = likely the same person appearing twice → keep both.
-      // Large gap = likely two different people matching the same profile → demote.
-      if (gap > DUPLICATE_GAP_THRESHOLD) {
-        demote.add(indices[k]);
-      }
+      demote.add(indices[k]);
     }
   }
 
@@ -265,9 +258,6 @@ export function deduplicateFrameMatches<T extends {
     return m;
   });
 }
-
-/** Minimum distance gap to consider two faces as different people. */
-const DUPLICATE_GAP_THRESHOLD = 0.06;
 
 export interface LookalikeResult {
   personId: string;

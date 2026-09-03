@@ -93,15 +93,35 @@ describe("open-set identification — safety layers", () => {
     expect(result.rejectedBy).toBe("ambiguity");
   });
 
-  it("LAYER 2 does not fire outside the uncertainty band", () => {
-    // Very close match (0.20): even if two people were oddly similar,
-    // decisive matches are trusted.
+  it("LAYER 2 — STRICT — a close runner-up forces unknown even for a low-distance match", () => {
+    // Two enrolled people whose stored faces land nearly equidistant from
+    // this probe (margin below ambiguityMargin). Even though the best
+    // distance is small, guessing between them risks a wrong-name swap when
+    // a head tilts, so we refuse to label: unknown, never the wrong name.
     const probe = atDistance(momBase, 0.2, 304);
     const result = identifyFaceDetailed(
       probe,
       [
         { id: "mom", descriptors: [atDistance(momBase, 0.2, 305)] }, // same point
         { id: "dad", descriptors: [atDistance(momBase, 0.26, 306)] },
+      ],
+      { threshold: THRESHOLD },
+    );
+    expect(result.status).toBe("unknown");
+    expect(result.personId).toBeNull();
+    expect(result.rejectedBy).toBe("ambiguity");
+  });
+
+  it("LAYER 2 clears when the runner-up is far (unambiguous match is trusted)", () => {
+    // Best match is very close, second person is clearly far → decisive,
+    // so the face IS recognized (a normal single-person or well-separated
+    // scenario must still work).
+    const probe = atDistance(momBase, 0.25, 310);
+    const result = identifyFaceDetailed(
+      probe,
+      [
+        { id: "mom", descriptors: [atDistance(momBase, 0.22, 311)] },
+        { id: "dad", descriptors: [atDistance(momBase, 0.85, 312)] },
       ],
       { threshold: THRESHOLD },
     );
@@ -185,6 +205,27 @@ describe("strict single-person recognition (the 'no stranger wears a saved name'
     expect(t.status).toBe("recognized");
     expect(t.personId).toBe("anas");
   });
+
+  it("saved + unsaved person together → the unsaved head never wears the saved name", () => {
+    // Two faces in one frame: the real saved person matches closely (0.28),
+    // and an unsaved stranger ALSO passes the strict gate (0.38) because the
+    // frame averaged it close to the saved descriptor. Even though both pass
+    // matching, cross-face dedup must give the name ONLY to the best match —
+    // the unsaved head stays unknown, never "anas".
+    const enrolled = unit(3001);
+    const edges: {
+      matched: boolean; personId: string | null; distance: number | null;
+    }[] = [
+      { matched: true, personId: "anas", distance: 0.28 }, // saved person, closest
+      { matched: true, personId: "anas", distance: 0.38 }, // unsaved stranger, passes gate
+    ];
+    const deduped = deduplicateFrameMatches(edges);
+    const named = deduped.filter((m) => m.matched && m.personId === "anas");
+    expect(named).toHaveLength(1);
+    expect(named[0].distance).toBeCloseTo(0.28);
+    expect(deduped[1].matched).toBe(false);
+    expect(deduped[1].personId).toBeNull();
+  });
 });
 
 describe("selectPrimaryFace", () => {
@@ -220,14 +261,20 @@ describe("deduplicateFrameMatches", () => {
     expect(result[1].personId).toBeNull();
   });
 
-  it("keeps both when distances are nearly equal (same person twice)", () => {
+  it("demotes the second even when distances are nearly equal (never two heads, one name)", () => {
+    // An unsaved stranger next to a saved person can both land just inside a
+    // saved profile's gate with a tiny gap. OLD behavior kept both as the
+    // same name; new strict behavior keeps ONLY the closest — the other face
+    // shows unknown, never the saved person's name.
     const matches = [
       { matched: true, personId: "mom", distance: 0.30 },
       { matched: true, personId: "mom", distance: 0.33 },
     ];
     const result = deduplicateFrameMatches(matches);
     expect(result[0].matched).toBe(true);
-    expect(result[1].matched).toBe(true);
+    expect(result[0].personId).toBe("mom");
+    expect(result[1].matched).toBe(false);
+    expect(result[1].personId).toBeNull();
   });
 
   it("does not touch faces matching different people", () => {

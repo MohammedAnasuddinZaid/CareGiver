@@ -103,18 +103,21 @@ TinyFaceDetector at ADAPTIVE resolution (320/256/224, latency-driven governor)
   ↓
 L2-normalized open-set matching against every enrolled descriptor
   ↓
-three safety layers:
+three safety layers (strict — prefer "unknown" over a wrong name):
   ① threshold gate        best distance ≤ T (balanced 0.40 ≈ cos θ ≥ 0.92)
-  ② ambiguity margin      if two people are near-equidistant in the
-                          uncertainty band → refuse to guess
+  ② ambiguity margin      if the best and runner-up people are nearly
+                          equidistant → refuse to label at all (head-tilt
+                          between two enrolled people can never borrow a
+                          wrong name)
   ③ logistic confidence   c = σ(k·(T−d)) weights each piece of evidence
   ↓
 IoU box tracker + per-coordinate One-Euro filtering (calm overlays)
   ↓
 temporal stabilization — exponentially-decayed evidence voting with
-Schmitt-trigger hysteresis (enter ≥ 1.5, exit < 0.55, τ = 900 ms):
-identities appear after several agreeing frames, ride through dropouts,
-and switch only when a newcomer independently wins
+Schmitt-trigger hysteresis (enter ≥ 1.5, exit < 0.55, τ = 900 ms),
+applied PER TRACKED HEAD: a head only earns its label after its own
+frames consistently agree, so a single tilting frame never pins a
+wrong name; at most one head may wear a given name at once
   ↓
 UI state + speech announcement (30 s cooldown per person)
 ```

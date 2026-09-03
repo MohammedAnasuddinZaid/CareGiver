@@ -69,6 +69,10 @@ export function useRecognition({ active }: RecognitionArgs) {
   const stabilizerRef = useRef<IdentityStabilizer>(new IdentityStabilizer(recognitionConfig));
   const trackerRef = useRef<BoxTracker>(new BoxTracker(recognitionConfig.tracker));
   const descriptorMemoryRef = useRef<DescriptorMemory>(new DescriptorMemory());
+  // One temporal identity gate PER TRACKED FACE. A track only earns a label
+  // after its own evidence consistently agrees, so a single tilting frame
+  // can never pin a wrong name to a head. The keys are String(trackId).
+  const trackStabilizersRef = useRef<Map<string, IdentityStabilizer>>(new Map());
   const governorRef = useRef<PerfGovernor>(new PerfGovernor(recognitionConfig.performance));
   // Adaptive exposure for dim/backlit rooms (cosmetic preview + baked into
   // the detection buffer so the model sees a lift too).
@@ -411,10 +415,90 @@ export function useRecognition({ active }: RecognitionArgs) {
         // This prevents two different people from both wearing the same name.
         const deduplicated = deduplicateFrameMatches(enriched);
 
-        drawTrackedBoxes(deduplicated);
-        drawFaceLabels(deduplicated);
-
         const now = performance.now();
+
+        // ---- Per-track temporal identity gate (strict) ----------------
+        // Each tracked head has its own stabilizer. A label is only granted
+        // after that head's own evidence consistently agrees (threshold +
+        // Schmitt hysteresis), so a single tilting frame — where the
+        // descriptor drifts toward another enrolled person — can never pin a
+        // wrong name to this head. It either keeps its true identity or drops
+        // to unknown; it never borrows someone else's.
+        const stableIdentity = new Map<number, string | null>();
+        const stableWeight = new Map<number, number>();
+        const trackKeySet = new Set<string>();
+        for (let ti = 0; ti < tracked.length; ti++) {
+          const trackId = tracked[ti].trackId;
+          const key = String(trackId);
+          trackKeySet.add(key);
+          let gate = trackStabilizersRef.current.get(key);
+          if (!gate) {
+            gate = new IdentityStabilizer(recognitionConfig);
+            trackStabilizersRef.current.set(key, gate);
+          }
+          const en = deduplicated[ti];
+          const obs =
+            en.matched && en.personId
+              ? { personId: en.personId, confidence: en.confidence }
+              : { personId: null, confidence: 0 };
+          const res = gate.observe(obs, now);
+          if (res.kind === "recognized" && res.personId) {
+            stableIdentity.set(trackId, res.personId);
+            // Decayed weight for this identity (used to break ties below).
+            const snap = gate.snapshot(now);
+            stableWeight.set(
+              trackId,
+              snap.find((s) => s.personId === res.personId)?.weight ?? 0,
+            );
+          } else {
+            stableIdentity.set(trackId, null);
+          }
+        }
+        // Prune gates for tracks that left the frame.
+        for (const key of trackStabilizersRef.current.keys()) {
+          if (!trackKeySet.has(key)) trackStabilizersRef.current.delete(key);
+        }
+
+        // ---- Cross-head uniqueness: at most ONE head per identity -----
+        // If two heads both reached a stable match for the same person
+        // (e.g. the real person plus a stranger that matched them), keep
+        // only the strongest — the other head is forced to unknown so a name
+        // is never painted on two different people at once.
+        const holderByPerson = new Map<string, number>();
+        for (const [trackId, personId] of stableIdentity) {
+          if (!personId) continue;
+          const holder = holderByPerson.get(personId);
+          if (holder === undefined) {
+            holderByPerson.set(personId, trackId);
+          } else {
+            const newW = stableWeight.get(trackId) ?? 0;
+            const curW = stableWeight.get(holder) ?? 0;
+            if (newW > curW) holderByPerson.set(personId, trackId);
+          }
+        }
+
+        // Final per-head label: only the winning track for its person.
+        const labelled = new Map<number, string | null>();
+        for (const [trackId, personId] of stableIdentity) {
+          labelled.set(
+            trackId,
+            personId && holderByPerson.get(personId) === trackId ? personId : null,
+          );
+        }
+        const display = tracked.map((t, ti) => ({
+          box: t.box,
+          hits: t.hits,
+          matched: (labelled.get(t.trackId) ?? null) !== null,
+          personId: labelled.get(t.trackId) ?? null,
+          confidence: labelled.get(t.trackId) ? deduplicated[ti].confidence : 0,
+          distance: deduplicated[ti].distance,
+          margin: deduplicated[ti].margin,
+          rejectedBy: deduplicated[ti].rejectedBy ?? "no-face",
+        }));
+
+        drawTrackedBoxes(display);
+        drawFaceLabels(display);
+
         let nextKind: StableKind;
         let nextPersonId: string | null = null;
         let bestObservation: { distance: number | null; confidence: number; margin: number | null; rejectedBy: string } = {
@@ -429,8 +513,11 @@ export function useRecognition({ active }: RecognitionArgs) {
           nextKind = s.kind;
           nextPersonId = s.personId;
         } else {
-          const primaryIndex = selectPrimaryFace(deduplicated);
-          const primary = deduplicated[primaryIndex];
+          // Primary face now comes from the STRICT per-head labels, so the
+          // big identity card + speech can only ever present a head that was
+          // stably and uniquely recognized.
+          const primaryIndex = selectPrimaryFace(display);
+          const primary = display[primaryIndex];
           const observation =
             primary.matched && primary.personId
               ? { personId: primary.personId, confidence: primary.confidence }
@@ -516,6 +603,7 @@ export function useRecognition({ active }: RecognitionArgs) {
       stabilizerRef.current.reset();
       trackerRef.current.reset();
       descriptorMemoryRef.current.reset();
+      trackStabilizersRef.current.clear();
       speechRef.current.reset();
       lastUiKeyRef.current = "";
       const canvas = canvasRef.current;

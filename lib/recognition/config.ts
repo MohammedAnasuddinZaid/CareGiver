@@ -45,19 +45,16 @@ export const recognitionConfig = {
 
   /**
    * Open-set verification math:
-   * - Ambiguity margin: when the best and second-best persons are separated
-   *   by less than `ambiguityMargin` AND the best distance sits inside the
-   *   uncertainty band, we refuse to guess (Lowe-style ratio test adapted
-   *   to open-set identification). Decisive matches (well below the band)
-   *   are always trusted — the strictness that protects against strangers
-   *   borrowing a name comes from the tight distance gate above.
+   * - Ambiguity margin: when the best and runner-up persons are separated
+   *   by less than `ambiguityMargin`, we refuse to label the face at all
+   *   (return unknown) — regardless of how close the best match is. This
+   *   keeps a head-tilt between two enrolled people from ever borrowing the
+   *   wrong name; the face is left unknown until a clear, separated frame.
    * - Confidence is a logistic calibration around the threshold:
    *   c = σ(k · (T − d)), used to weight temporal votes.
    */
   matching: {
     ambiguityMargin: 0.09,
-    uncertaintyBandLow: 0.35,
-    uncertaintyBandHigh: 0.58,
     confidenceSlope: 14,
   },
 
