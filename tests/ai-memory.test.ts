@@ -36,6 +36,26 @@ describe("extractFacts", () => {
     expect(facts).toHaveLength(0);
   });
 
+  it("extracts a name from the contraction 'I'm X'", () => {
+    const facts = extractFacts("im anas");
+    expect(facts).toHaveLength(1);
+    expect(facts[0]).toEqual({ key: "name", value: "Anas" });
+  });
+
+  it("extracts a name from 'i'm anas'", () => {
+    const facts = extractFacts("i'm anas");
+    expect(facts).toEqual([{ key: "name", value: "Anas" }]);
+  });
+
+  it("does NOT extract a name from 'i'm tired'", () => {
+    expect(extractFacts("im tired")).toHaveLength(0);
+  });
+
+  it("extracts a two-word name from 'my name is'", () => {
+    const facts = extractFacts("my name is anasuddin zaid");
+    expect(facts).toEqual([{ key: "name", value: "Anasuddin Zaid" }]);
+  });
+
   it("does NOT extract a name from 'I am tired'", () => {
     const facts = extractFacts("i am tired");
     expect(facts).toHaveLength(0);

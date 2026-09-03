@@ -81,12 +81,17 @@ export default function AssistantPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restoredRef = useRef(false);
+  // Synchronous mirror of memory so the reply logic NEVER reads a stale
+  // closure. React state updates are async — relying on them inside the
+  // reply timer was what let the companion "forget" the name a beat later.
+  const memoryRef = useRef<AIMemory>({ facts: [], chats: [] });
 
   useEffect(() => {
     setProfile(loadProfile());
     void gatherContext().then(setCtx);
     // Long-term memory (IndexedDB) — facts + chat history across sessions.
     void loadMemory().then((mem) => {
+      memoryRef.current = mem;
       setMemory(mem);
       if (mem.chats.length > 0) {
         restoredRef.current = true;
@@ -105,6 +110,8 @@ export default function AssistantPage() {
 
   // Open with a warm greeting once memory and live data are both in.
   // restoredRef is true when loadMemory brought back old chats — skip greeting.
+  // Depends on memory so a name loaded from IndexedDB (or just learned) is
+  // picked up — anything else let the companion greet without a name.
   useEffect(() => {
     if (!profile || !ctx || messages.length > 0 || restoredRef.current) return;
     const nameFact = memory.facts.find((f) => f.key === "name");
@@ -118,7 +125,7 @@ export default function AssistantPage() {
       }),
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile, ctx]);
+  }, [profile, ctx, memory.facts]);
 
   // Autoscroll the message list only (never jump the page on load).
   useEffect(() => {
@@ -144,19 +151,25 @@ export default function AssistantPage() {
       setInput("");
       setTyping(true);
       const current = profile;
-      const currentMemory = memory;
 
       // Extract and remember any facts the person shared (name, family, hobbies).
       const extracted = extractFacts(trimmed);
       if (extracted.length > 0) {
+        // Apply to the synchronous ref IMMEDIATELY so the reply in this very
+        // tick already knows the name — no stale closure, no waiting on async
+        // state. Then persist + mirror to React state (for the UI/callers).
+        const byKey = new Map(memoryRef.current.facts.map((f) => [f.key, f]));
+        for (const f of extracted) byKey.set(f.key, { key: f.key, value: f.value, ts: Date.now() });
+        const facts = Array.from(byKey.values());
+        memoryRef.current = { ...memoryRef.current, facts };
         void rememberFacts(extracted).then(() => {
-          setMemory((prev) => {
-            const byKey = new Map(prev.facts.map((f) => [f.key, f]));
-            for (const f of extracted) byKey.set(f.key, { key: f.key, value: f.value, ts: Date.now() });
-            return { ...prev, facts: Array.from(byKey.values()) };
-          });
+          setMemory((prev) => ({ ...prev, facts }));
         });
       }
+
+      // Reflect the user turn into the live memory (chat) as well.
+      const chats = [...memoryRef.current.chats, { id: Date.now(), role: "user" as const, text: trimmed, ts: Date.now() }];
+      memoryRef.current = { ...memoryRef.current, chats };
 
       // Persist the user message to long-term chat history.
       void appendChat({ role: "user", text: trimmed });
@@ -169,13 +182,14 @@ export default function AssistantPage() {
         } catch {
           device = null;
         }
+        // Always read the LATEST memory from the ref, never a stale snapshot.
         const { reply, patch } = respond(
           { message: trimmed, route: "/assistant" },
           current,
           device,
           {
-            facts: recallFacts(currentMemory.facts),
-            chats: currentMemory.chats.slice(-6),
+            facts: recallFacts(memoryRef.current.facts),
+            chats: memoryRef.current.chats.slice(-6),
           },
         );
         const next = applyPatch(current, patch);
@@ -184,20 +198,19 @@ export default function AssistantPage() {
         setTyping(false);
         setMessages((m) => [...m, toMsg("ai", reply)]);
 
-        // Persist the AI reply + updated facts so next session has full context.
+        // Reflect the AI reply into live memory + persist for next session.
+        const aiLine = { id: Date.now() + 1, role: "ai" as const, text: reply.text, tone: reply.tone, ts: Date.now() };
+        memoryRef.current = { ...memoryRef.current, chats: [...memoryRef.current.chats, aiLine].slice(-400) };
         void appendChat({ role: "ai", text: reply.text, tone: reply.tone });
-        const aiFacts = extracted.filter((f) => f.key === "name");
-        if (aiFacts.length > 0) {
-          void rememberFacts(aiFacts);
-        }
       }, 380);
     },
-    [profile, memory],
+    [profile],
   );
 
   const forget = () => {
     setProfile(resetProfile());
     setCtx(null);
+    memoryRef.current = { facts: [], chats: [] };
     setMemory({ facts: [], chats: [] });
     restoredRef.current = false;
     void gatherContext().then(setCtx);

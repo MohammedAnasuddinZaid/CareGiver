@@ -141,16 +141,17 @@ export function extractFacts(text: string): ExtractedFact[] {
     if (!out.some((f) => f.key === key)) out.push({ key, value });
   };
 
-  // Name: "my name is X", "call me X", "i am X / I'm X".
-  let m = lower.match(/(?:my name is|call me|i'm called|im called|i am called)\s+([a-z][a-z '-]{1,29})/);
+  // Name: "my name is X", "call me X", "i'm/ i am called X", "I am X"
+  // (also handles the common contractions "i'm" and "im").
+  const NAME_STOP = /^(so|very|just|feeling|a|little|not|still|here|ok|fine|tired|sad|happy|angry|scared|done|ready|back|from|in|at|on|with|looking|trying|having|going|going to|a little|going back|not sure|so happy|feeling a bit)\b/;
+  let m = lower.match(/(?:my name is|call me|i(?:'m|m| am) called)\s+([a-z][a-z '-]{1,29})/);
   if (m) {
     add("name", capName(m[1]));
   } else {
-    m = lower.match(/(?:^|\s)i am\s+([a-z][a-z '-]{1,29})(?:\s|[,.;!?]|$)/);
+    m = lower.match(/(?:^|\s)(?:i am|i'm|im)\s+([a-z][a-z '-]{1,29})(?:\s|[,.;!?]|$)/);
     // Only trust a bare "I am X" when it's a proper-looking name, not a
-    // feeling ("I am sad", "I am tired"), a preposition ("I am from"),
-    // or the start of a longer clause.
-    if (m && !m[1].match(/^(so|very|just|feeling|a|little|not|still|here|ok|fine|tired|sad|happy|angry|scared|done|ready|back|from|in|at|on|with|looking|trying|having|going)\b/)) {
+    // feeling ("I am sad"), a preposition ("I am from"), or a longer clause.
+    if (m && !NAME_STOP.test(m[1])) {
       add("name", capName(m[1]));
     }
   }
