@@ -387,12 +387,20 @@ export function useRecognition({ active }: RecognitionArgs) {
           const face = detIdx >= 0 ? faces[detIdx] : null;
           let match: ReturnType<typeof identifyFaceIndexedDetailed> | null = null;
           if (face) {
-            const smoothed = descriptorMemoryRef.current.update(
+            const mem = descriptorMemoryRef.current.update(
               String(t.trackId),
               face.descriptor,
               t0,
             );
-            const normalized = smoothed ? l2Normalize(smoothed) : null;
+            // A track-swap was just detected (this tracker id now follows a
+            // DIFFERENT physical head, e.g. two people crossed). Wipe that
+            // track's identity gate immediately so the OLD head's name can
+            // never ride through to the new head — the exact leak that put a
+            // recognized name on a tilting stranger for seconds.
+            if (mem.swap) {
+              trackStabilizersRef.current.delete(String(t.trackId));
+            }
+            const normalized = mem.descriptor ? l2Normalize(mem.descriptor) : null;
             if (normalized) {
               match = identifyFaceIndexedDetailed(normalized, profileIndex, { threshold });
             }

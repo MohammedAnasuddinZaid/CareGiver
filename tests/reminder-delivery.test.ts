@@ -80,11 +80,21 @@ describe("reminder delivery engine", () => {
   });
 
   it("flips unresolved slots past the grace window to 'missed'", async () => {
-    const r = makeReminder({ id: "r-missed" });
+    // Clock-robust slot: a few minutes ago TODAY, so the event always falls
+    // inside the real-clock 7-day getRecentEvents window no matter when the
+    // suite runs. A fixed past date (e.g. Aug 26) silently dropped out of
+    // that window once real time advanced, making this test time-flaky.
+    const slot = Date.now() - 10 * 60_000;
+    const d = new Date(slot);
+    const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    const r = makeReminder({ id: "r-missed", time });
     await saveReminder(r);
-    const due = at(26, 9, 0);
+    const due = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), 0, 0).getTime();
     const justFired = due + 1000;
-    const [alert] = await collectDueReminders(justFired);
+    const alerts = await collectDueReminders(justFired);
+    // Pin the r-missed alert rather than alerts[0] (the suite accumulates
+    // other reminders and their order is non-deterministic).
+    const alert = alerts.find((a) => a.reminder.id === "r-missed")!;
     expect(alert.eventId).toBeDefined();
 
     // Well past the 2 h grace without confirmation → settled as missed.

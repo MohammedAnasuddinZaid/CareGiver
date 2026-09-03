@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { difficultyLevel } from "@/lib/cognition/traits";
 import { mulberry32, shuffle, randInt } from "@/lib/games/rng";
+import { WORDS } from "@/lib/games/wordbank";
 import type { GameStageProps } from "./faces-game";
 import type { TrialOutcome } from "@/hooks/use-game-session";
 import { PhrasePlayer } from "@/lib/audio/phrase-player";
@@ -17,13 +18,6 @@ import { PhrasePlayer } from "@/lib/audio/phrase-player";
  * Difficulty scales word length. Mistaps are gentle hints (counted, not
  * punished harshly) so a wrong tile never blocks progress.
  */
-const WORDS = [
-  ["SUN", "KEY", "TEA", "CAT", "OWL", "BEE"],
-  ["HOME", "CARE", "LOVE", "TREE", "SONG", "STAR", "FISH", "DOOR", "BELL", "MILK"],
-  ["PLANT", "RIVER", "MUSIC", "HEART", "BREAD", "SMILE", "LIGHT", "CHAIR", "WATER"],
-  ["FLOWER", "GARDEN", "MARKET", "WINDOW", "KITCHEN", "FAMILY", "SPRING"],
-  ["MEMORY", "LETTER", "BOTTLE", "ORANGE", "GARDEN", "PENCIL", "TEMPLE"],
-];
 
 const ALLOWED_MISTAKES = [8, 6, 5, 4, 3];
 
@@ -178,6 +172,8 @@ export function WordBuilderGame({ difficulty, itemKey, startTrial, completeTrial
 
 function useRefPhrasePlayer() {
   const [ref] = useState(() => ({ current: new PhrasePlayer() }));
-  useEffect(() => () => ref.current.reset(), [ref]);
+  // dispose (not reset): never cancel the spoken word mid-way when the next
+  // item mounts — the stage re-mounts every item (GameChrome key).
+  useEffect(() => () => ref.current.dispose(), [ref]);
   return ref;
 }

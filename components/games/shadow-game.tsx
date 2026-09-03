@@ -19,18 +19,36 @@ const COLORS = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899"
 
 function ShapeSvg({ shape, color, size = 56 }: { shape: Shape; color: string; size?: number }) {
   const common = { fill: color, stroke: "rgba(0,0,0,0.15)", strokeWidth: 2 } as const;
-  if (shape === "circle") return <circle cx={size / 2} cy={size / 2} r={size / 2 - 6} {...common} />;
-  if (shape === "square") return <rect x={6} y={6} width={size - 12} height={size - 12} rx={6} {...common} />;
-  if (shape === "triangle") return <polygon points={`${size / 2},6 ${size - 6},${size - 6} 6,${size - 6}`} {...common} />;
-  if (shape === "diamond") return <polygon points={`${size / 2},6 ${size - 6},${size / 2} ${size / 2},${size - 6} 6,${size / 2}`} {...common} />;
-  // star
-  const pts: string[] = [];
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? size / 2 - 6 : size / 4;
-    const a = (Math.PI / 5) * i - Math.PI / 2;
-    pts.push(`${size / 2 + r * Math.cos(a)},${size / 2 + r * Math.sin(a)}`);
+  // The SVG primitives MUST live inside an <svg> element — a bare <circle>,
+  // <rect> or <polygon> in HTML context is an invalid element the browser
+  // won't draw, which previously made every Shadow Match card blank/white.
+  let body: React.ReactElement;
+  if (shape === "circle") body = <circle cx={size / 2} cy={size / 2} r={size / 2 - 6} {...common} />;
+  else if (shape === "square")
+    body = <rect x={6} y={6} width={size - 12} height={size - 12} rx={6} {...common} />;
+  else if (shape === "triangle")
+    body = <polygon points={`${size / 2},6 ${size - 6},${size - 6} 6,${size - 6}`} {...common} />;
+  else if (shape === "diamond")
+    body = (
+      <polygon
+        points={`${size / 2},6 ${size - 6},${size / 2} ${size / 2},${size - 6} 6,${size / 2}`}
+        {...common}
+      />
+    );
+  else {
+    const pts: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? size / 2 - 6 : size / 4;
+      const a = (Math.PI / 5) * i - Math.PI / 2;
+      pts.push(`${size / 2 + r * Math.cos(a)},${size / 2 + r * Math.sin(a)}`);
+    }
+    body = <polygon points={pts.join(" ")} {...common} />;
   }
-  return <polygon points={pts.join(" ")} {...common} />;
+  return (
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} role="img" aria-hidden="true">
+      {body}
+    </svg>
+  );
 }
 
 export function ShadowGame({ difficulty, itemKey, startTrial, completeTrial }: GameStageProps) {
@@ -77,7 +95,10 @@ export function ShadowGame({ difficulty, itemKey, startTrial, completeTrial }: G
       if (distractors.some((d) => d.shape === s && d.color === c)) continue;
       distractors.push({ shape: s, color: c });
     }
-    return { target, options: shuffle([target, ...distractors], rand), answerIndex: 0 };
+    const options = shuffle([target, ...distractors], rand);
+    // The target's true position AFTER shuffling — earlier code hard-coded
+    // index 0, so the correct tile was mis-graded almost every round.
+    return { target, options, answerIndex: options.indexOf(target) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemKey, optionCount]);
 

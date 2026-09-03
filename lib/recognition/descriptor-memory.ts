@@ -56,14 +56,26 @@ export class DescriptorMemory {
    * two people cross). Instead of blending — which would create a hybrid
    * descriptor matching NEITHER person — the memory is reset so the new
    * face gets a clean start.
+   *
+   * The returned `swap` flag lets callers know a physical-head change was
+   * just detected on this track, so they can reset the track's own temporal
+   * identity gate in the same tick. Without that, the stale gate would keep
+   * emitting the OLD identity for several more frames (Schmitt ride-through)
+   * even though the memory already switched to a new face.
    */
-  update(key: string, descriptor: number[], now: number): number[] | null {
-    if (!isFiniteVector(descriptor, DESCRIPTOR_LENGTH)) return null;
+  update(
+    key: string,
+    descriptor: number[],
+    now: number,
+  ): { descriptor: number[] | null; swap: boolean } {
+    if (!isFiniteVector(descriptor, DESCRIPTOR_LENGTH)) {
+      return { descriptor: null, swap: false };
+    }
     const existing = this.entries.get(key);
     if (!existing || now - existing.last > DescriptorMemory.TTL_MS) {
       const copy = descriptor.slice();
       this.entries.set(key, { d: copy, n: 1, last: now });
-      return copy;
+      return { descriptor: copy, swap: false };
     }
 
     // Track-swap guard: cosine distance between EMA and new descriptor.
@@ -87,7 +99,7 @@ export class DescriptorMemory {
         existing.d = copy;
         existing.n = 1;
         existing.last = now;
-        return copy;
+        return { descriptor: copy, swap: true };
       }
     }
 
@@ -96,7 +108,7 @@ export class DescriptorMemory {
     }
     existing.n += 1;
     existing.last = now;
-    return target;
+    return { descriptor: target, swap: false };
   }
 
   /** Drops memories for tracks that no longer exist (keeps the map tiny). */

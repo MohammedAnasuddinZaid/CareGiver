@@ -17,8 +17,9 @@ describe("DescriptorMemory", () => {
     const mem = new DescriptorMemory();
     const d = unit(1);
     const out = mem.update("t1", d, 0);
-    expect(out).not.toBe(d);
-    expect(out).toEqual(d);
+    expect(out.descriptor).not.toBe(d);
+    expect(out.descriptor).toEqual(d);
+    expect(out.swap).toBe(false);
   });
 
   it("blends subsequent frames with the configured EMA weight", () => {
@@ -26,11 +27,13 @@ describe("DescriptorMemory", () => {
     const a = unit(2);
     const b = unit(3);
     mem.update("t1", a, 0);
-    const blended = mem.update("t1", b, 10)!;
+    const blendedRes = mem.update("t1", b, 10)!;
+    const blended = blendedRes.descriptor!;
+    expect(blendedRes.swap).toBe(false);
     // One EMA step toward b: distance to b must shrink vs distance a↔b.
     expect(normalizedEuclidean(blended, b)).toBeLessThan(normalizedEuclidean(a, b));
     for (let i = 0; i < 30; i++) mem.update("t1", b, 20 + i * 10);
-    const converged = mem.update("t1", b, 400)!;
+    const converged = mem.update("t1", b, 400)!.descriptor!;
     expect(normalizedEuclidean(converged, b)).toBeLessThan(0.02);
   });
 
@@ -45,7 +48,7 @@ describe("DescriptorMemory", () => {
     const mem = new DescriptorMemory();
     let smoothed: number[] | null = null;
     for (let i = 0; i < 4; i++) {
-      smoothed = mem.update("face", noisy(i + 10), i * 260);
+      smoothed = mem.update("face", noisy(i + 10), i * 260).descriptor;
     }
     const singleFrameDistance = normalizedEuclidean(noisy(99), truth);
     const averagedDistance = normalizedEuclidean(smoothed!, truth);
@@ -56,9 +59,44 @@ describe("DescriptorMemory", () => {
 
   it("rejects corrupt vectors without poisoning memory", () => {
     const mem = new DescriptorMemory();
-    expect(mem.update("t1", [0.5, NaN], 0)).toBeNull();
-    expect(mem.update("t1", [], 0)).toBeNull();
+    expect(mem.update("t1", [0.5, NaN], 0).descriptor).toBeNull();
+    expect(mem.update("t1", [], 0).descriptor).toBeNull();
     expect(mem.framesFor("t1")).toBe(0);
+  });
+
+  it("flags a swap and resets when a different physical face follows the same id", () => {
+    const mem = new DescriptorMemory();
+    const faceA = unit(1);
+    const faceB = unit(50);
+    // Bootstrap on face A (likened to an enrolled, recognized head).
+    for (let i = 0; i < 5; i++) mem.update("t1", faceA, i * 260);
+    expect(mem.framesFor("t1")).toBe(5);
+
+    // faceB is a genuinely different face (far apart in descriptor space) —
+    // the tracker just reassigned id "t1" to a new physical head.
+    const res = mem.update("t1", faceB, 6 * 260);
+    expect(res.swap).toBe(true);
+    // Memory must be reset to the new face's own descriptor (no hybrid),
+    // so a subsequent match runs against the stranger's own identity.
+    const after = mem.update("t1", faceB, 7 * 260).descriptor!;
+    expect(normalizedEuclidean(after, faceB)).toBeLessThan(0.02);
+    expect(mem.framesFor("t1")).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does NOT flag a swap for same-person pose noise", () => {
+    const mem = new DescriptorMemory();
+    const truth = unit(7);
+    const pose = (seed: number): number[] => {
+      const noise = unit(seed);
+      const mixed = truth.map((x, i) => x * 0.94 + noise[i] * 0.12);
+      return l2Normalize(mixed)!;
+    };
+    mem.update("t1", truth, 0);
+    let swap = false;
+    for (let i = 1; i <= 5; i++) {
+      swap = swap || mem.update("t1", pose(i), i * 260).swap;
+    }
+    expect(swap).toBe(false);
   });
 
   it("retain() drops memories of vanished tracks", () => {

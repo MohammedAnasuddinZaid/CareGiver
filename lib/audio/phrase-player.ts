@@ -32,6 +32,19 @@ export class PhrasePlayer {
     this.audioCache.clear();
   }
 
+  /**
+   * Releases resources without interrupting in-progress speech.
+   *
+   * Game stages re-mount on every item transition (see GameChrome's
+   * `key={current}`), so their cleanup must NOT call speechSynthesis.cancel —
+   * that chopped the celebratory word ("Happy") off mid-way the instant the
+   * next item mounted. Clearing the cache/tones while letting the current
+   * utterance finish is the right behaviour on a transition.
+   */
+  dispose(): void {
+    this.audioCache.clear();
+  }
+
   // -- Speech -------------------------------------------------------------
 
   /** Speaks `text` localized for `locale`. Returns true when spoken. */

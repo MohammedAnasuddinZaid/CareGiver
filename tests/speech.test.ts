@@ -1,4 +1,5 @@
 ﻿import { describe, expect, it, vi } from "vitest";
+import { PhrasePlayer } from "@/lib/audio/phrase-player";
 import { SpeechGuide } from "@/lib/speech/speech-service";
 
 function makeGuide() {
@@ -58,5 +59,27 @@ describe("SpeechGuide — calm voice behavior", () => {
     expect(speak).not.toHaveBeenCalled();
     guide.reset();
     expect(cancel).toHaveBeenCalled();
+  });
+});
+
+describe("PhrasePlayer — transition vs teardown speech handling", () => {
+  it("dispose() must NOT cancel in-progress speech (item transition)", () => {
+    const player = new PhrasePlayer();
+    const stopSpeech = vi
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .spyOn(player as any, "stopSpeech")
+      .mockImplementation(() => undefined);
+    player.dispose();
+    expect(stopSpeech).not.toHaveBeenCalled();
+  });
+
+  it("reset() DOES cancel speech (true teardown)", () => {
+    const player = new PhrasePlayer();
+    const stopSpeech = vi
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .spyOn(player as any, "stopSpeech")
+      .mockImplementation(() => undefined);
+    player.reset();
+    expect(stopSpeech).toHaveBeenCalledTimes(1);
   });
 });

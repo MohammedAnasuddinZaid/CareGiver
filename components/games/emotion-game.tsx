@@ -124,6 +124,8 @@ export function EmotionGame({ difficulty, itemKey, startTrial, completeTrial }: 
 
 function useRefPhrasePlayer() {
   const [ref] = useState(() => ({ current: new PhrasePlayer() }));
-  useEffect(() => () => ref.current.reset(), [ref]);
+  // dispose (not reset): never cancel the celebratory word mid-way when the
+  // next item mounts — the stage re-mounts every item (GameChrome key).
+  useEffect(() => () => ref.current.dispose(), [ref]);
   return ref;
 }
