@@ -4,6 +4,15 @@ import { GAME_META, type GameId } from "@/lib/games/types";
 import { bestDoc, TOPIC_QUESTIONS } from "./knowledge";
 import type { AIProfile } from "./store";
 import type { DeviceContext } from "./context";
+import type { MemoryFact, ChatLine } from "./memory";
+
+/** Concrete memory the companion can use right now, from long-term store. */
+export interface MemoryRecall {
+  /** Facts the caller has chosen to surface (usually recallFacts(...)). */
+  facts?: MemoryFact[];
+  /** A few recent chat lines (oldest→newest) so replies keep context. */
+  chats?: ChatLine[];
+}
 
 export type CompanionTone =
   | "greet"
@@ -117,8 +126,17 @@ function cap(word: string): string {
   return word[0].toUpperCase() + word.slice(1);
 }
 
-function nameCallout(profile: AIProfile): string {
-  return profile.name ? `, ${profile.name}` : "";
+function nameCallout(name: string | null | undefined): string {
+  return name ? `, ${name}` : "";
+}
+
+function capName(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
 }
 
 /**
@@ -299,11 +317,20 @@ export function respond(
   input: CompanionInput,
   profile: AIProfile,
   ctx?: DeviceContext | null,
+  memory?: MemoryRecall | null,
 ): { reply: CompanionReply; patch: LearningPatch } {
   const patch: LearningPatch = { turns: profile.turns + 1 };
   const lower = (input.message ?? "").toLowerCase();
   const mentioned = input.message ? matchGame(input.message) : null;
   const doc = input.message ? bestDoc(lower) : null;
+
+  // Long-term memory gives the most personal, continuous companion. Prefer a
+  // remembered fact (IndexedDB) as the name source, since it survives longer
+  // and isn't wiped by a localStorage reset.
+  const nameFact = memory?.facts?.find((f) => f.key === "name");
+  const memoryName = nameFact ? capName(nameFact.value) : profile.name;
+  const interestFact = memory?.facts?.find((f) => f.key === "interest");
+  const memoryInterest = interestFact?.value;
 
   // --- Contextual opening (no typed message) ---
   if (!input.message || input.message.trim().length === 0) {
@@ -327,6 +354,41 @@ export function respond(
         patch,
       };
     }
+  }
+
+  // --- "What do you remember / remember me?" : reflect long-term memory. ---
+  if (/remember (about )?me|what do you (know|remember)|d[o']? you remember me\b/.test(lower)) {
+    const facts = memory?.facts ?? [];
+    if (facts.length === 0) {
+      return {
+        reply: {
+          text: `I'm still getting to know you${nameCallout(memoryName)}. Tell me a little about yourself — your name, your family, what you enjoy — and I'll always remember it, privately on this device.`,
+          tone: "chat",
+          quick: ["I am Anas", "Let's talk", "Plan my day"],
+        },
+        patch,
+      };
+    }
+    const labels: Record<string, string> = {
+      name: "I remember your name",
+      family: "You've told me about your family",
+      interest: "You enjoy",
+      origin: "You're from",
+      birthday: "Your birthday",
+    };
+    const lines = facts
+      .filter((f) => labels[f.key])
+      .map((f) => `• ${labels[f.key]}: ${f.value}`);
+    return {
+      reply: {
+        text: `Of course I remember${nameCallout(memoryName)}! Here's what I've kept privately:\n${lines.join(
+          "\n",
+        )}\n\nI hold on to the things you share, and nothing leaves this device.`,
+        tone: "celebrate",
+        quick: ["Remind me of something", "Plan my day", "Cheer me up"],
+      },
+      patch,
+    };
   }
 
   const { intent } = scoreIntents(input.message);
@@ -359,7 +421,7 @@ export function respond(
         : ` A gentle game like ${GAME_TITLES.faces} can lift the moment — no pressure.`;
     return {
       reply: {
-        text: `I hear you${nameCallout(profile)}, and you're not alone — I'm sitting right here with you.${ans}`,
+        text: `I hear you${nameCallout(memoryName)}, and you're not alone — I'm sitting right here with you.${ans}`,
         tone: "empathize",
         quick: ["I feel a little better", "Tell me something nice", "Let's play"],
         suggestGame: loved ?? doc?.suggest ?? "faces",
@@ -387,7 +449,7 @@ export function respond(
         : ` What would you like to do today?`;
     return {
       reply: {
-        text: `Hello${nameCallout(profile)}! I'm right here with you.${tail}`,
+        text: `Hello${nameCallout(memoryName)}! I'm right here with you.${tail}`,
         tone: "greet",
         quick: doc ? TOPIC_QUESTIONS.slice(0, 3) : ["I'm a bit forgetful today", "Something fun please", "Tell me about CareGiver"],
         suggestGame: suggested ?? undefined,
@@ -398,7 +460,7 @@ export function respond(
   if (intent === "bye") {
     return {
       reply: {
-        text: `Take good care${nameCallout(profile)}. I'll be right here whenever you come back. 💚`,
+        text: `Take good care${nameCallout(memoryName)}. I'll be right here whenever you come back. 💚`,
         tone: "greet",
         quick: ["See you soon"],
       },
@@ -408,7 +470,7 @@ export function respond(
   if (intent === "gratitude") {
     return {
       reply: {
-        text: `That means a lot${nameCallout(profile)}. I'm happy to be here with you, always. 💚`,
+        text: `That means a lot${nameCallout(memoryName)}. I'm happy to be here with you, always. 💚`,
         tone: "celebrate",
         quick: ["Let's play something", "Tell me a tip"],
       },
@@ -429,8 +491,8 @@ export function respond(
     }
     const g = loved ?? mentioned ?? null;
     const text = g
-      ? `I'm so glad${nameCallout(profile)}! That warmth is good for the brain. Let's keep that feeling going with ${GAME_TITLES[g]}.`
-      : `I'm so glad to hear that${nameCallout(profile)}! That warmth is good for the heart and the mind. Let's carry it into a gentle little moment — a game, a favourite song, a short walk.`;
+      ? `I'm so glad${nameCallout(memoryName)}! That warmth is good for the brain. Let's keep that feeling going with ${GAME_TITLES[g]}.`
+      : `I'm so glad to hear that${nameCallout(memoryName)}! That warmth is good for the heart and the mind. Let's carry it into a gentle little moment — a game, a favourite song, a short walk.`;
     return {
       reply: {
         text,
@@ -465,7 +527,7 @@ export function respond(
   if (intent === "forgetful") {
     return {
       reply: {
-        text: `Let me be your calm helper with that${nameCallout(profile)}. Forgetting something — a word, a place, why you came into a room — happens to everyone, and it does not mean you are losing ground. You are still you. We can keep the names you love on this device, set gentle reminders so the day writes itself, or take a short, easy memory stroll together.`,
+        text: `Let me be your calm helper with that${nameCallout(memoryName)}. Forgetting something — a word, a place, why you came into a room — happens to everyone, and it does not mean you are losing ground. You are still you. We can keep the names you love on this device, set gentle reminders so the day writes itself, or take a short, easy memory stroll together.`,
         tone: "calm",
         quick: [
           "I can't remember things",
@@ -481,7 +543,7 @@ export function respond(
   if (intent === "frustrated") {
     return {
       reply: {
-        text: `No wonder that feels heavy${nameCallout(profile)} — however you're feeling, it's okay. Let's make today smaller: an easier game, a gentler reminder, or simply a quiet moment together. You don't have to succeed at anything today; showing up is already enough.`,
+        text: `No wonder that feels heavy${nameCallout(memoryName)} — however you're feeling, it's okay. Let's make today smaller: an easier game, a gentler reminder, or simply a quiet moment together. You don't have to succeed at anything today; showing up is already enough.`,
         tone: "empathize",
         quick: ["Something fun please", "Cheer me up", "Which game is easy?", "Tell me something nice"],
         suggestGame: "faces",
@@ -492,7 +554,7 @@ export function respond(
   if (intent === "feeling") {
     return {
       reply: {
-        text: `Thank you for trusting me${nameCallout(profile)} — I'm right here with you, whatever it is. Take it at your own pace: a soft game, a warm drink, or a few slow breaths all count as kindness to yourself.`,
+        text: `Thank you for trusting me${nameCallout(memoryName)} — I'm right here with you, whatever it is. Take it at your own pace: a soft game, a warm drink, or a few slow breaths all count as kindness to yourself.`,
         tone: "empathize",
         quick: ["I'm feeling sad", "I keep forgetting things", "Cheer me up", "Plan my day"],
         suggestGame: "faces",
@@ -504,7 +566,7 @@ export function respond(
   if (intent === "askHelp") {
     return {
       reply: {
-        text: `Of course${nameCallout(profile)} — I've got you. I can help with so many things: plan your day, read your progress, suggest a game, find a reminder, or explain privacy and how the app works. What would you like?`,
+        text: `Of course${nameCallout(memoryName)} — I've got you. I can help with so many things: plan your day, read your progress, suggest a game, find a reminder, or explain privacy and how the app works. What would you like?`,
         tone: "suggest",
         quick: TOPIC_QUESTIONS,
       },
@@ -515,10 +577,12 @@ export function respond(
   // Fallback: listen, and offer real topics.
   const tail = suggested
     ? ` Lately ${GAME_TITLES[suggested]} seemed tricky — want to try it the easy way?`
-    : "";
+    : memoryInterest
+      ? ` And I remember you enjoy ${memoryInterest} — we could always revisit something that brings you joy.`
+      : "";
   return {
     reply: {
-      text: `I'm listening${nameCallout(profile)}.${tail}`,
+      text: `I'm listening${nameCallout(memoryName)}.${tail}`,
       tone: "chat",
       quick: TOPIC_QUESTIONS,
       suggestGame: suggested ?? undefined,
@@ -609,7 +673,7 @@ export function routeTip(
     };
   }
   return {
-    text: `Hi${nameCallout(profile)}! I'm your CareGiver companion — I listen, learn what helps you, and can answer questions about privacy, the games and more. Ask me anything.`,
+    text: `Hi${nameCallout(profile.name)}! I'm your CareGiver companion — I listen, learn what helps you, and can answer questions about privacy, the games and more. Ask me anything.`,
     tone: "greet",
     quick: TOPIC_QUESTIONS,
   };

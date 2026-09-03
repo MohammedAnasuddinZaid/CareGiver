@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyProfile } from "@/lib/ai/store";
 import { respond, routeTip } from "@/lib/ai/model";
+import type { MemoryRecall } from "@/lib/ai/model";
 import { bestDoc } from "@/lib/ai/knowledge";
 import { GAME_TITLES } from "@/components/games/game-meta";
 import { type DeviceContext } from "@/lib/ai/context";
@@ -111,6 +112,66 @@ describe("CareGiver assistant on /assistant", () => {
 
   it("welcomes with the assistant home tip", () => {
     expect(routeTip("/assistant", emptyProfile()).text).toContain("plan your day");
+  });
+});
+
+describe("long-term memory recall in replies", () => {
+  const mem: MemoryRecall = {
+    facts: [
+      { key: "name", value: "Anas", ts: 1 },
+      { key: "interest", value: "music", ts: 2 },
+    ],
+    chats: [{ id: 1, role: "user", text: "i am Anas", ts: 1 }],
+  };
+
+  it("greets using the remembered name from memory", () => {
+    const { reply } = respond({ message: "hello" }, emptyProfile(), undefined, mem);
+    expect(reply.text).toContain("Anas");
+  });
+
+  it("uses the remembered name even when localStorage profile has none", () => {
+    const { reply } = respond({ message: "i feel sad today" }, emptyProfile(), undefined, mem);
+    expect(reply.text).toContain("Anas");
+  });
+
+  it("mentions a remembered interest in the fallback", () => {
+    const { reply } = respond({ message: "nothing much" }, emptyProfile(), undefined, mem);
+    expect(reply.text.toLowerCase()).toContain("music");
+  });
+
+  it("lists remembered facts for 'what do you remember about me'", () => {
+    const { reply } = respond(
+      { message: "what do you remember about me" },
+      emptyProfile(),
+      undefined,
+      mem,
+    );
+    expect(reply.text).toContain("Anas");
+    expect(reply.text).toContain("music");
+  });
+
+  it("asks to learn when there are no facts yet", () => {
+    const { reply } = respond({ message: "what do you remember" }, emptyProfile(), undefined, {
+      facts: [],
+      chats: [],
+    });
+    expect(reply.text.toLowerCase()).toContain("still getting to know");
+  });
+
+  it("calls the remembered name on every emotional intent", () => {
+    const { reply } = respond({ message: "goodnight" }, emptyProfile(), undefined, mem);
+    expect(reply.text).toContain("Anas");
+  });
+
+  it("prefers the memory name over a profile name", () => {
+    const { reply } = respond(
+      { message: "hello" },
+      { ...emptyProfile(), name: "Sam" },
+      undefined,
+      mem,
+    );
+    expect(reply.text).toContain("Anas");
+    expect(reply.text).not.toContain(", Sam");
   });
 });
 

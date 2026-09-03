@@ -22,6 +22,15 @@ import {
   type AIProfile,
 } from "@/lib/ai/store";
 import { gatherContext, type DeviceContext } from "@/lib/ai/context";
+import {
+  appendChat,
+  clearMemory,
+  extractFacts,
+  loadMemory,
+  rememberFacts,
+  recallFacts,
+  type AIMemory,
+} from "@/lib/ai/memory";
 import { GAME_ROUTES, GAME_TITLES } from "@/components/games/game-meta";
 import { GAME_META, type GameId } from "@/lib/games/types";
 
@@ -64,22 +73,43 @@ const QUICK_STARTERS = [
 export default function AssistantPage() {
   const [profile, setProfile] = useState<AIProfile | null>(null);
   const [ctx, setCtx] = useState<DeviceContext | null>(null);
+  const [memory, setMemory] = useState<AIMemory>({ facts: [], chats: [] });
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const idRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restoredRef = useRef(false);
 
   useEffect(() => {
     setProfile(loadProfile());
     void gatherContext().then(setCtx);
+    // Long-term memory (IndexedDB) — facts + chat history across sessions.
+    void loadMemory().then((mem) => {
+      setMemory(mem);
+      if (mem.chats.length > 0) {
+        restoredRef.current = true;
+        setMessages(
+          mem.chats.map((c) =>
+            toMsg(c.role as Msg["from"], {
+              text: c.text,
+              tone: (c.tone ?? "chat") as CompanionTone,
+            }),
+          ),
+        );
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Open with a warm greeting once memory and live data are both in.
+  // restoredRef is true when loadMemory brought back old chats — skip greeting.
   useEffect(() => {
-    if (!profile || !ctx || messages.length > 0) return;
-    const name = profile.name ? `, ${profile.name}` : "";
+    if (!profile || !ctx || messages.length > 0 || restoredRef.current) return;
+    const nameFact = memory.facts.find((f) => f.key === "name");
+    const displayName = nameFact ? nameFact.value : profile.name;
+    const name = displayName ? `, ${displayName}` : "";
     setMessages([
       toMsg("ai", {
         text: `Hi${name}! I'm your CareGiver Assistant, here to help. Ask me to plan your day, read your progress, suggest a game, or explain anything about the app — I answer from what's on your device alone.`,
@@ -114,6 +144,23 @@ export default function AssistantPage() {
       setInput("");
       setTyping(true);
       const current = profile;
+      const currentMemory = memory;
+
+      // Extract and remember any facts the person shared (name, family, hobbies).
+      const extracted = extractFacts(trimmed);
+      if (extracted.length > 0) {
+        void rememberFacts(extracted).then(() => {
+          setMemory((prev) => {
+            const byKey = new Map(prev.facts.map((f) => [f.key, f]));
+            for (const f of extracted) byKey.set(f.key, { key: f.key, value: f.value, ts: Date.now() });
+            return { ...prev, facts: Array.from(byKey.values()) };
+          });
+        });
+      }
+
+      // Persist the user message to long-term chat history.
+      void appendChat({ role: "user", text: trimmed });
+
       timerRef.current = setTimeout(async () => {
         let device: DeviceContext | null = null;
         try {
@@ -126,21 +173,35 @@ export default function AssistantPage() {
           { message: trimmed, route: "/assistant" },
           current,
           device,
+          {
+            facts: recallFacts(currentMemory.facts),
+            chats: currentMemory.chats.slice(-6),
+          },
         );
         const next = applyPatch(current, patch);
         saveProfile(next);
         setProfile(next);
         setTyping(false);
         setMessages((m) => [...m, toMsg("ai", reply)]);
+
+        // Persist the AI reply + updated facts so next session has full context.
+        void appendChat({ role: "ai", text: reply.text, tone: reply.tone });
+        const aiFacts = extracted.filter((f) => f.key === "name");
+        if (aiFacts.length > 0) {
+          void rememberFacts(aiFacts);
+        }
       }, 380);
     },
-    [profile],
+    [profile, memory],
   );
 
   const forget = () => {
     setProfile(resetProfile());
     setCtx(null);
+    setMemory({ facts: [], chats: [] });
+    restoredRef.current = false;
     void gatherContext().then(setCtx);
+    void clearMemory();
     setMessages([toMsg("ai", routeTip("/assistant", resetProfile()))]);
   };
 
