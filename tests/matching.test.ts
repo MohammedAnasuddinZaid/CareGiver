@@ -7,8 +7,10 @@ import {
   selectPrimaryFace,
 } from "@/lib/recognition/matching";
 import { l2Normalize } from "@/lib/recognition/metrics";
+import { recognitionConfig } from "@/lib/recognition/config";
 
 const THRESHOLD = 0.55;
+const STRICT = recognitionConfig.thresholds.balanced;
 
 /** Deterministic pseudo-random unit vector. */
 function unit(seed: number): number[] {
@@ -130,6 +132,58 @@ describe("open-set identification — safety layers", () => {
     const r = identifyFaceDetailed(momBase, [], { threshold: THRESHOLD });
     expect(r.status).toBe("unknown");
     expect(r.rejectedBy).toBe("no-profiles");
+  });
+});
+
+describe("strict single-person recognition (the 'no stranger wears a saved name' rule)", () => {
+  it("recognizes only the enrolled person, and leaves a stranger unknown", () => {
+    // One saved person; a stranger lands at a distance a stranger can
+    // plausibly reach (e.g. 0.48) — below the OLD loose 0.55 gate where it
+    // used to be mislabeled, but above the strict default 0.40 gate.
+    const enrolled = unit(1001);
+    const stranger = atDistance(enrolled, 0.48, 1002);
+    const trueProbe = atDistance(enrolled, 0.25, 1003);
+
+    const strictResult = identifyFaceDetailed(
+      stranger,
+      [{ id: "anas", descriptors: [enrolled] }],
+      { threshold: STRICT },
+    );
+    expect(strictResult.status).toBe("unknown");
+    expect(strictResult.personId).toBeNull();
+    expect(strictResult.rejectedBy).toBe("threshold");
+
+    // The real enrolled person is still recognized at the strict gate.
+    const trueResult = identifyFaceDetailed(
+      trueProbe,
+      [{ id: "anas", descriptors: [enrolled] }],
+      { threshold: STRICT },
+    );
+    expect(trueResult.status).toBe("recognized");
+    expect(trueResult.personId).toBe("anas");
+  });
+
+  it("stays strict even at the most permissive setting a stranger can still hit", () => {
+    // Even the loosest built-in setting (0.46) must reject a clear stranger
+    // mid-band (0.50) while accepting the enrolled person (0.28).
+    const enrolled = unit(2001);
+    const stranger = atDistance(enrolled, 0.5, 2002);
+    const trueProbe = atDistance(enrolled, 0.28, 2003);
+
+    const s = identifyFaceDetailed(
+      stranger,
+      [{ id: "anas", descriptors: [enrolled] }],
+      { threshold: recognitionConfig.thresholds.permissive },
+    );
+    expect(s.status).toBe("unknown");
+
+    const t = identifyFaceDetailed(
+      trueProbe,
+      [{ id: "anas", descriptors: [enrolled] }],
+      { threshold: recognitionConfig.thresholds.permissive },
+    );
+    expect(t.status).toBe("recognized");
+    expect(t.personId).toBe("anas");
   });
 });
 

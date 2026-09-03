@@ -24,14 +24,22 @@ export const recognitionConfig = {
   /**
    * Euclidean distance threshold on L2-normalized 128-D descriptors.
    * For unit vectors, euclidean distance d relates to cosine similarity
-   * by d = sqrt(2 − 2·cos θ), so d ≤ 0.55 ≈ cos θ ≥ 0.85.
-   * The library's FaceMatcher default is 0.6; we bias stricter so an
-   * unfamiliar person can remain unknown rather than be mislabeled.
+   * by d = sqrt(2 − 2·cos θ), so d ≤ 0.40 ≈ cos θ ≥ 0.92 and d ≤ 0.46
+   * ≈ cos θ ≥ 0.89.
+   *
+   * These are deliberately STRICT. The library's FaceMatcher default is
+   * 0.6 and we sat around 0.55 — both loose enough that an unfamiliar face
+   * can casually land inside the gate and borrow a saved person's name,
+   * which is exactly the failure a caregiver must never see. Real
+   * same-person matches with good enrollment sit around d ≈ 0.2–0.4 while
+   * different people usually sit at d ≥ 0.5, so tightening to ≈ 0.40
+   * rejects almost every stranger while still recognizing a genuine
+   * front-on match. Preference bias: prefer "unknown" over a wrong name.
    */
   thresholds: {
-    cautious: 0.50,
-    balanced: 0.55,
-    permissive: 0.62,
+    cautious: 0.34,
+    balanced: 0.40,
+    permissive: 0.46,
   } satisfies Record<Sensitivity, number>,
   defaultSensitivity: "balanced" as Sensitivity,
 
@@ -40,7 +48,9 @@ export const recognitionConfig = {
    * - Ambiguity margin: when the best and second-best persons are separated
    *   by less than `ambiguityMargin` AND the best distance sits inside the
    *   uncertainty band, we refuse to guess (Lowe-style ratio test adapted
-   *   to open-set identification).
+   *   to open-set identification). Decisive matches (well below the band)
+   *   are always trusted — the strictness that protects against strangers
+   *   borrowing a name comes from the tight distance gate above.
    * - Confidence is a logistic calibration around the threshold:
    *   c = σ(k · (T − d)), used to weight temporal votes.
    */
@@ -62,18 +72,21 @@ export const recognitionConfig = {
    * - Switching identities requires the newcomer to independently satisfy
    *   the enter criterion — the previous person is held meanwhile.
    *
+   * With the stricter distance gate a genuine match yields confidence near
+   * ~0.7–0.9 each frame, so enterWeight 1.5 demands a couple of agreeing
+   * frames (≈ 0.5–1 s) before a name is announced — enough to reject a
+   * single lucky frame from a stranger, while still locking quickly.
+   *
    * Control-theory tuning (verified against the discrete fixed point):
    * the accumulator obeys w ← w·k + c with k = exp(−Δt/τ), giving steady
    * state w* = c/(1−k). With a TRUE period-based 260 ms cadence and
    * τ = 900 ms, k = 0.75 so w* ≈ 4·c — comfortably above enterWeight for
-   * any plausible match, while enterWeight = 1.35 locks a typical strong
-   * match (c ≈ 0.86+) in TWO frames ≈ 520 ms and a marginal one (c ≈ 0.59)
-   * in three ≈ 780 ms. Hysteresis ratio 0.55/1.35 preserves flicker
+   * any plausible match. Hysteresis ratio 0.55/1.5 preserves flicker
    * immunity; dropout ride-through ≈ τ·ln(w/exit) ≈ 0.9–1.6 s.
    */
   temporal: {
     tauMs: 900,
-    enterWeight: 1.1,
+    enterWeight: 1.5,
     exitWeight: 0.55,
     maxWeight: 4.0,
     pruneAfterMs: 4500,
